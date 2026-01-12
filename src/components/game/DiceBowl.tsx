@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { motion, useMotionValue, useTransform, animate } from "framer-motion";
+import { motion, useMotionValue, animate } from "framer-motion";
 import { AnimalType, ANIMALS } from "@/lib/game";
 
 interface DiceBowlProps {
@@ -17,14 +17,6 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
   
   const x = useMotionValue(0);
   const y = useMotionValue(0);
-  
-  const bowlOpacity = useTransform(
-    [x, y],
-    ([latestX, latestY]: number[]) => {
-      const distance = Math.sqrt(latestX * latestX + latestY * latestY);
-      return Math.max(0, 1 - distance / 150);
-    }
-  );
 
   const getAnimalEmoji = (animalId: AnimalType) => {
     return ANIMALS.find(a => a.id === animalId)?.emoji || '❓';
@@ -46,7 +38,7 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
     const currentY = y.get();
     const distance = Math.sqrt(currentX * currentX + currentY * currentY);
     
-    if (distance > 80) {
+    if (distance > 100) {
       setIsRevealed(true);
       setHasBeenDragged(true);
       onBowlRevealed?.();
@@ -152,86 +144,99 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
         </div>
       </div>
 
-      {/* Bowl Cover with Cloud Pattern - Draggable */}
+      {/* Bowl Cover - Circular, covers entire plate, draggable, never invisible */}
       {showBowl && (
         <motion.div
           drag={canReveal && !hasBeenDragged}
           dragConstraints={constraintsRef}
-          dragElastic={0.1}
+          dragElastic={0.15}
           onDragEnd={handleDragEnd}
           style={{ 
             x, 
-            y, 
-            opacity: canReveal ? bowlOpacity : 1,
-            background: 'linear-gradient(180deg, #8B0000 0%, #6B0000 50%, #4B0000 100%)',
-            boxShadow: '0 15px 40px rgba(0,0,0,0.4), inset 0 -5px 20px rgba(0,0,0,0.3)',
-            top: '20%',
+            y,
+            background: 'radial-gradient(ellipse at 30% 20%, #B22222 0%, #8B0000 30%, #6B0000 60%, #4B0000 100%)',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.5), inset 0 -10px 30px rgba(0,0,0,0.4), inset 0 5px 20px rgba(255,255,255,0.1)',
           }}
           animate={isShaking ? {
-            rotate: [0, -5, 5, -5, 5, 0],
-            y: [0, -5, 5, -3, 3, 0],
+            rotate: [0, -8, 8, -6, 6, -4, 4, 0],
+            y: [0, -8, 8, -6, 6, -4, 4, 0],
+            x: [0, 4, -4, 3, -3, 2, -2, 0],
           } : {}}
           transition={isShaking ? {
-            duration: 0.2,
+            duration: 0.25,
             repeat: Infinity,
             ease: "easeInOut"
           } : {}}
-          className={`absolute z-20 w-56 h-40 md:w-64 md:h-44 rounded-t-full ${canReveal && !hasBeenDragged ? 'cursor-grab' : 'cursor-default'} active:cursor-grabbing`}
+          className={`absolute z-20 w-72 h-72 md:w-80 md:h-80 rounded-full ${canReveal && !hasBeenDragged ? 'cursor-grab' : 'cursor-default'} active:cursor-grabbing`}
         >
-          {/* Cloud pattern decoration */}
-          <svg className="absolute inset-0 w-full h-full overflow-hidden" viewBox="0 0 200 120" preserveAspectRatio="xMidYMid slice">
-            {/* Cloud 1 */}
-            <g fill="rgba(255,215,0,0.3)">
-              <ellipse cx="40" cy="30" rx="15" ry="10" />
-              <ellipse cx="50" cy="25" rx="12" ry="8" />
-              <ellipse cx="55" cy="32" rx="10" ry="7" />
-              <ellipse cx="30" cy="28" rx="10" ry="6" />
-            </g>
-            {/* Cloud 2 */}
-            <g fill="rgba(255,215,0,0.25)">
-              <ellipse cx="140" cy="50" rx="18" ry="12" />
-              <ellipse cx="155" cy="45" rx="14" ry="9" />
-              <ellipse cx="160" cy="53" rx="12" ry="8" />
-              <ellipse cx="128" cy="48" rx="12" ry="7" />
-            </g>
-            {/* Cloud 3 */}
-            <g fill="rgba(255,215,0,0.2)">
-              <ellipse cx="80" cy="70" rx="16" ry="10" />
-              <ellipse cx="92" cy="65" rx="13" ry="8" />
-              <ellipse cx="96" cy="72" rx="11" ry="7" />
-              <ellipse cx="68" cy="68" rx="11" ry="6" />
-            </g>
-            {/* Swirl patterns */}
-            <path d="M 30 80 Q 40 70 50 80 T 70 80" stroke="rgba(255,215,0,0.3)" strokeWidth="2" fill="none" />
-            <path d="M 120 30 Q 130 20 140 30 T 160 30" stroke="rgba(255,215,0,0.25)" strokeWidth="2" fill="none" />
-          </svg>
-          
-          {/* Bowl rim */}
+          {/* Bowl dome effect */}
           <div 
-            className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-b from-primary/80 to-primary"
+            className="absolute inset-4 rounded-full"
             style={{
-              borderBottomLeftRadius: '8px',
-              borderBottomRightRadius: '8px',
+              background: 'radial-gradient(ellipse at 35% 25%, rgba(255,255,255,0.15) 0%, transparent 50%)',
             }}
           />
           
-          {/* Bowl handle/knob */}
+          {/* Cloud pattern decoration */}
+          <svg className="absolute inset-0 w-full h-full" viewBox="0 0 300 300" preserveAspectRatio="xMidYMid slice">
+            {/* Cloud 1 - top left */}
+            <g fill="rgba(255,215,0,0.35)">
+              <ellipse cx="80" cy="70" rx="20" ry="14" />
+              <ellipse cx="95" cy="62" rx="16" ry="11" />
+              <ellipse cx="102" cy="72" rx="14" ry="10" />
+              <ellipse cx="65" cy="68" rx="14" ry="9" />
+            </g>
+            {/* Cloud 2 - right */}
+            <g fill="rgba(255,215,0,0.3)">
+              <ellipse cx="220" cy="120" rx="22" ry="15" />
+              <ellipse cx="238" cy="112" rx="17" ry="12" />
+              <ellipse cx="244" cy="123" rx="15" ry="10" />
+              <ellipse cx="205" cy="118" rx="15" ry="10" />
+            </g>
+            {/* Cloud 3 - bottom */}
+            <g fill="rgba(255,215,0,0.25)">
+              <ellipse cx="130" cy="200" rx="24" ry="16" />
+              <ellipse cx="150" cy="190" rx="18" ry="13" />
+              <ellipse cx="158" cy="203" rx="16" ry="11" />
+              <ellipse cx="112" cy="198" rx="16" ry="11" />
+            </g>
+            {/* Cloud 4 - center */}
+            <g fill="rgba(255,215,0,0.2)">
+              <ellipse cx="150" cy="130" rx="18" ry="12" />
+              <ellipse cx="165" cy="124" rx="14" ry="10" />
+              <ellipse cx="140" cy="126" rx="12" ry="8" />
+            </g>
+            {/* Decorative swirls */}
+            <path d="M 60 180 Q 80 160 100 180 T 140 180" stroke="rgba(255,215,0,0.3)" strokeWidth="2.5" fill="none" />
+            <path d="M 180 80 Q 200 60 220 80 T 260 80" stroke="rgba(255,215,0,0.25)" strokeWidth="2.5" fill="none" />
+            <path d="M 200 200 Q 215 185 230 200" stroke="rgba(255,215,0,0.2)" strokeWidth="2" fill="none" />
+          </svg>
+          
+          {/* Bowl rim/edge */}
           <div 
-            className="absolute -top-3 left-1/2 transform -translate-x-1/2 w-8 h-6 rounded-full"
+            className="absolute inset-0 rounded-full border-8 border-primary/60"
             style={{
-              background: 'linear-gradient(180deg, #FFD700 0%, #B8860B 100%)',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              boxShadow: 'inset 0 0 20px rgba(0,0,0,0.3)',
+            }}
+          />
+          
+          {/* Bowl handle/knob at top */}
+          <div 
+            className="absolute -top-4 left-1/2 transform -translate-x-1/2 w-12 h-10 rounded-full"
+            style={{
+              background: 'linear-gradient(180deg, #FFD700 0%, #DAA520 50%, #B8860B 100%)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.4), inset 0 2px 4px rgba(255,255,255,0.3)',
             }}
           />
           
           {/* Drag hint */}
           {canReveal && !hasBeenDragged && (
             <motion.div
-              animate={{ y: [0, 5, 0], opacity: [0.7, 1, 0.7] }}
+              animate={{ scale: [1, 1.05, 1], opacity: [0.8, 1, 0.8] }}
               transition={{ duration: 1.5, repeat: Infinity }}
-              className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-primary-foreground/80 text-sm font-medium whitespace-nowrap"
+              className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-game-gold text-base font-bold whitespace-nowrap drop-shadow-lg"
             >
-              👆 Kéo bát để xem kết quả
+              👆 Kéo bát để mở
             </motion.div>
           )}
         </motion.div>
