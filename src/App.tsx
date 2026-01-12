@@ -10,6 +10,8 @@ import Game from "./pages/Game";
 import Games from "./pages/Games";
 import Admin from "./pages/Admin";
 import Deposit from "./pages/Deposit";
+import RoomLobby from "./pages/RoomLobby";
+import Room from "./pages/Room";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +28,8 @@ const App = () => (
           <Route path="/register" element={<Register />} />
           <Route path="/game" element={<Game />} />
           <Route path="/games" element={<Games />} />
+          <Route path="/rooms" element={<RoomLobby />} />
+          <Route path="/room/:roomId" element={<Room />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/deposit" element={<Deposit />} />
           <Route path="*" element={<NotFound />} />
@@ -36,3 +40,4 @@ const App = () => (
 );
 
 export default App;
+
