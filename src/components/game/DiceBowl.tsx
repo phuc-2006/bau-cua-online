@@ -38,8 +38,8 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
     const currentY = y.get();
     const distance = Math.sqrt(currentX * currentX + currentY * currentY);
     
-    // Reduced threshold from 100 to 50 for easier reveal
-    if (distance > 50) {
+    // Reduced threshold to 30 for very easy reveal
+    if (distance > 30) {
       setIsRevealed(true);
       setHasBeenDragged(true);
       onBowlRevealed?.();
@@ -151,7 +151,7 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
         <motion.div
           drag={canReveal && !hasBeenDragged}
           dragConstraints={constraintsRef}
-          dragElastic={0.3}
+          dragElastic={0.5}
           onDragEnd={handleDragEnd}
           style={{ 
             x, 
