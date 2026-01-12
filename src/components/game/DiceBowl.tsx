@@ -57,7 +57,8 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
     y.set(0);
   }
 
-  const showBowl = !isRevealed && (isShaking || canReveal);
+  // Bowl is always visible - covers the plate at all times
+  const showBowl = true;
 
   return (
     <div ref={constraintsRef} className="relative flex items-center justify-center" style={{ width: 320, height: 320 }}>
