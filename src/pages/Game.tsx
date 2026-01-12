@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 const Game = () => {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -21,7 +22,7 @@ const Game = () => {
         }
         setUser(session.user);
         
-        // Fetch profile
+        // Fetch profile and role
         setTimeout(async () => {
           const { data: profileData, error } = await supabase
             .from("profiles")
@@ -34,6 +35,16 @@ const Game = () => {
           } else if (profileData) {
             setProfile(profileData);
           }
+
+          // Check if admin
+          const { data: roleData } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", session.user.id)
+            .eq("role", "admin")
+            .maybeSingle();
+
+          setIsAdmin(!!roleData);
           setLoading(false);
         }, 500);
       }
@@ -72,7 +83,7 @@ const Game = () => {
     }
   };
 
-  const handleBack = async () => {
+  const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/");
   };
@@ -89,7 +100,9 @@ const Game = () => {
     <GameBoard
       balance={profile?.balance || 100000}
       onBalanceChange={handleBalanceChange}
-      onBack={handleBack}
+      onLogout={handleLogout}
+      username={profile?.username || "Người chơi"}
+      isAdmin={isAdmin}
     />
   );
 };

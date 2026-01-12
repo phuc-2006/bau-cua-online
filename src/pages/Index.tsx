@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Dice5, LogIn, UserPlus } from "lucide-react";
+import { Gamepad2, LogIn, UserPlus } from "lucide-react";
 
 const Index = () => {
   return (
@@ -52,10 +52,10 @@ const Index = () => {
               animate={{ rotate: [0, 15, -15, 0] }}
               transition={{ duration: 2, repeat: Infinity }}
             >
-              🎲
+              🎮
             </motion.span>
-            <h1 className="text-5xl md:text-7xl font-black text-foreground game-title text-shadow-gold">
-              BẦU CUA
+            <h1 className="text-4xl md:text-6xl font-black text-foreground game-title text-shadow-gold">
+              TRÒ CHƠI
             </h1>
             <motion.span 
               className="text-6xl"
@@ -65,28 +65,28 @@ const Index = () => {
               🎲
             </motion.span>
           </div>
-          <h2 className="text-3xl md:text-4xl font-bold text-primary game-title">
-            TÔM CÁ
+          <h2 className="text-3xl md:text-5xl font-bold text-primary game-title">
+            DÂN GIAN VIỆT NAM
           </h2>
         </motion.div>
 
         <p className="text-muted-foreground text-lg mb-2">
-          Trò chơi dân gian Việt Nam
+          Bộ sưu tập các trò chơi truyền thống
         </p>
         <p className="text-foreground/70 text-sm mb-8">
           Chơi vui - Tiền ảo - Không cờ bạc thật
         </p>
 
-        {/* Animal emojis */}
+        {/* Game icons */}
         <motion.div 
-          className="flex justify-center gap-4 mb-10 text-4xl"
+          className="flex justify-center gap-4 mb-10 text-4xl flex-wrap"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
         >
-          {['🦌', '🎃', '🐓', '🐟', '🦀', '🦐'].map((emoji, index) => (
+          {['🎲', '🦌', '🦀', '🦐', '🐟', '🐓', '🎃', '♟️', '🃏'].map((emoji, index) => (
             <motion.span
-              key={emoji}
+              key={index}
               animate={{ 
                 y: [0, -10, 0],
                 scale: [1, 1.1, 1]
@@ -94,7 +94,7 @@ const Index = () => {
               transition={{ 
                 duration: 2, 
                 repeat: Infinity,
-                delay: index * 0.2
+                delay: index * 0.15
               }}
             >
               {emoji}
@@ -127,7 +127,7 @@ const Index = () => {
         >
           <div className="p-4">
             <div className="text-3xl mb-2">🎮</div>
-            <p className="text-foreground/80 text-sm font-medium">Chơi miễn phí</p>
+            <p className="text-foreground/80 text-sm font-medium">Nhiều trò chơi</p>
           </div>
           <div className="p-4">
             <div className="text-3xl mb-2">💰</div>

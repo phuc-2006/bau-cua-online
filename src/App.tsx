@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Game from "./pages/Game";
+import Games from "./pages/Games";
 import Admin from "./pages/Admin";
 import Deposit from "./pages/Deposit";
 import NotFound from "./pages/NotFound";
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/game" element={<Game />} />
+          <Route path="/games" element={<Games />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/deposit" element={<Deposit />} />
           <Route path="*" element={<NotFound />} />

@@ -15,7 +15,8 @@ import {
   Plus, 
   Loader2,
   Shield,
-  Clock
+  Clock,
+  Search
 } from "lucide-react";
 
 interface DepositRequest {
@@ -41,9 +42,13 @@ const Admin = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [allUsers, setAllUsers] = useState<Profile[]>([]);
   const [depositRequests, setDepositRequests] = useState<DepositRequest[]>([]);
   const [addAmount, setAddAmount] = useState("");
+  const [userAddAmounts, setUserAddAmounts] = useState<Record<string, string>>({});
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState<"self" | "requests" | "users">("self");
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -89,6 +94,9 @@ const Admin = () => {
         setProfile(profileData);
       }
 
+      // Fetch all users
+      await fetchAllUsers();
+
       // Fetch pending deposit requests
       await fetchDepositRequests();
       
@@ -97,6 +105,17 @@ const Admin = () => {
 
     checkAdminStatus();
   }, [navigate, toast]);
+
+  const fetchAllUsers = async () => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .order("username", { ascending: true });
+
+    if (!error && data) {
+      setAllUsers(data);
+    }
+  };
 
   const fetchDepositRequests = async () => {
     const { data, error } = await supabase
@@ -151,6 +170,53 @@ const Admin = () => {
     }
   };
 
+  const handleAddMoneyToUser = async (targetUser: Profile) => {
+    const amountStr = userAddAmounts[targetUser.user_id];
+    if (!amountStr) return;
+
+    const amount = parseInt(amountStr);
+    if (isNaN(amount) || amount <= 0) {
+      toast({
+        title: "Lỗi",
+        description: "Vui lòng nhập số tiền hợp lệ.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setProcessingId(targetUser.user_id);
+
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ balance: targetUser.balance + amount })
+        .eq("user_id", targetUser.user_id);
+
+      if (error) throw error;
+
+      // Update local state
+      setAllUsers(prev => prev.map(u => 
+        u.user_id === targetUser.user_id 
+          ? { ...u, balance: u.balance + amount }
+          : u
+      ));
+      setUserAddAmounts(prev => ({ ...prev, [targetUser.user_id]: "" }));
+      
+      toast({
+        title: "Thành công!",
+        description: `Đã nạp ${formatMoney(amount)} cho ${targetUser.username}.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Lỗi",
+        description: error.message || "Không thể nạp tiền.",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   const handleApproveRequest = async (request: DepositRequest) => {
     setProcessingId(request.id);
 
@@ -190,6 +256,7 @@ const Admin = () => {
       });
 
       await fetchDepositRequests();
+      await fetchAllUsers();
     } catch (error: any) {
       toast({
         title: "Lỗi",
@@ -233,6 +300,10 @@ const Admin = () => {
     }
   };
 
+  const filteredUsers = allUsers.filter(u => 
+    u.username.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -243,110 +314,201 @@ const Admin = () => {
 
   return (
     <div className="min-h-screen bg-background p-4">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <Button variant="gameOutline" onClick={() => navigate("/game")}>
+        <div className="flex items-center justify-between mb-6">
+          <Button variant="gameOutline" onClick={() => navigate("/games")}>
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Quay lại Game
+            Quay lại
           </Button>
           <div className="flex items-center gap-2 text-foreground">
             <Shield className="w-5 h-5 text-primary" />
-            <span className="font-bold">Admin Panel</span>
+            <span className="font-bold">Admin Dashboard</span>
           </div>
         </div>
 
-        {/* Admin Balance */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-card rounded-2xl p-6 shadow-xl border-2 border-primary/30 mb-6"
-        >
-          <h2 className="text-xl font-bold text-card-foreground mb-4 flex items-center gap-2">
-            <Wallet className="w-6 h-6 text-primary" />
-            Số dư của bạn
-          </h2>
-          <p className="text-3xl font-black text-primary mb-4">
-            {formatMoney(profile?.balance || 0)}
-          </p>
-          
-          <div className="flex gap-3">
-            <Input
-              type="number"
-              placeholder="Nhập số tiền..."
-              value={addAmount}
-              onChange={(e) => setAddAmount(e.target.value)}
-              className="flex-1 bg-background border-border text-foreground"
-            />
-            <Button variant="gameGold" onClick={handleAddMoney}>
-              <Plus className="w-4 h-4 mr-2" />
-              Nạp tiền
-            </Button>
-          </div>
-        </motion.div>
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+          <Button
+            variant={activeTab === "self" ? "game" : "gameOutline"}
+            onClick={() => setActiveTab("self")}
+          >
+            <Wallet className="w-4 h-4 mr-2" />
+            Tài khoản
+          </Button>
+          <Button
+            variant={activeTab === "requests" ? "game" : "gameOutline"}
+            onClick={() => setActiveTab("requests")}
+          >
+            <Clock className="w-4 h-4 mr-2" />
+            Yêu cầu ({depositRequests.length})
+          </Button>
+          <Button
+            variant={activeTab === "users" ? "game" : "gameOutline"}
+            onClick={() => setActiveTab("users")}
+          >
+            <Users className="w-4 h-4 mr-2" />
+            Quản lý Users
+          </Button>
+        </div>
 
-        {/* Deposit Requests */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-card rounded-2xl p-6 shadow-xl border-2 border-primary/30"
-        >
-          <h2 className="text-xl font-bold text-card-foreground mb-4 flex items-center gap-2">
-            <Users className="w-6 h-6 text-primary" />
-            Yêu cầu nạp tiền ({depositRequests.length})
-          </h2>
-
-          {depositRequests.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">
-              Không có yêu cầu nào đang chờ duyệt.
+        {/* Tab Content */}
+        {activeTab === "self" && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-card rounded-2xl p-6 shadow-xl border-2 border-primary/30"
+          >
+            <h2 className="text-xl font-bold text-card-foreground mb-4 flex items-center gap-2">
+              <Wallet className="w-6 h-6 text-primary" />
+              Số dư của bạn
+            </h2>
+            <p className="text-3xl font-black text-primary mb-4">
+              {formatMoney(profile?.balance || 0)}
             </p>
-          ) : (
-            <div className="space-y-4">
-              {depositRequests.map((request) => (
+            
+            <div className="flex gap-3">
+              <Input
+                type="number"
+                placeholder="Nhập số tiền..."
+                value={addAmount}
+                onChange={(e) => setAddAmount(e.target.value)}
+                className="flex-1 bg-background border-border text-foreground"
+              />
+              <Button variant="gameGold" onClick={handleAddMoney}>
+                <Plus className="w-4 h-4 mr-2" />
+                Nạp tiền
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === "requests" && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-card rounded-2xl p-6 shadow-xl border-2 border-primary/30"
+          >
+            <h2 className="text-xl font-bold text-card-foreground mb-4 flex items-center gap-2">
+              <Clock className="w-6 h-6 text-primary" />
+              Yêu cầu nạp tiền ({depositRequests.length})
+            </h2>
+
+            {depositRequests.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">
+                Không có yêu cầu nào đang chờ duyệt.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {depositRequests.map((request) => (
+                  <div
+                    key={request.id}
+                    className="flex items-center justify-between p-4 bg-background rounded-xl border border-border"
+                  >
+                    <div>
+                      <p className="font-bold text-foreground">
+                        {(request as any).profiles?.username || "Người dùng"}
+                      </p>
+                      <p className="text-primary font-bold text-lg">
+                        {formatMoney(request.amount)}
+                      </p>
+                      <p className="text-muted-foreground text-sm flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {new Date(request.created_at).toLocaleString("vi-VN")}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="gameGold"
+                        size="sm"
+                        onClick={() => handleApproveRequest(request)}
+                        disabled={processingId === request.id}
+                      >
+                        {processingId === request.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Check className="w-4 h-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="gameDanger"
+                        size="sm"
+                        onClick={() => handleRejectRequest(request)}
+                        disabled={processingId === request.id}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {activeTab === "users" && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-card rounded-2xl p-6 shadow-xl border-2 border-primary/30"
+          >
+            <h2 className="text-xl font-bold text-card-foreground mb-4 flex items-center gap-2">
+              <Users className="w-6 h-6 text-primary" />
+              Quản lý Users ({allUsers.length})
+            </h2>
+
+            {/* Search */}
+            <div className="relative mb-4">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Tìm kiếm user..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 bg-background border-border text-foreground"
+              />
+            </div>
+
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {filteredUsers.map((userItem) => (
                 <div
-                  key={request.id}
+                  key={userItem.id}
                   className="flex items-center justify-between p-4 bg-background rounded-xl border border-border"
                 >
                   <div>
-                    <p className="font-bold text-foreground">
-                      {(request as any).profiles?.username || "Người dùng"}
-                    </p>
-                    <p className="text-primary font-bold text-lg">
-                      {formatMoney(request.amount)}
-                    </p>
-                    <p className="text-muted-foreground text-sm flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {new Date(request.created_at).toLocaleString("vi-VN")}
+                    <p className="font-bold text-foreground">{userItem.username}</p>
+                    <p className="text-primary font-medium">
+                      {formatMoney(userItem.balance)}
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 items-center">
+                    <Input
+                      type="number"
+                      placeholder="Số tiền"
+                      value={userAddAmounts[userItem.user_id] || ""}
+                      onChange={(e) => setUserAddAmounts(prev => ({
+                        ...prev,
+                        [userItem.user_id]: e.target.value
+                      }))}
+                      className="w-32 bg-card border-border text-foreground"
+                    />
                     <Button
                       variant="gameGold"
                       size="sm"
-                      onClick={() => handleApproveRequest(request)}
-                      disabled={processingId === request.id}
+                      onClick={() => handleAddMoneyToUser(userItem)}
+                      disabled={processingId === userItem.user_id}
                     >
-                      {processingId === request.id ? (
+                      {processingId === userItem.user_id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
-                        <Check className="w-4 h-4" />
+                        <Plus className="w-4 h-4" />
                       )}
-                    </Button>
-                    <Button
-                      variant="gameDanger"
-                      size="sm"
-                      onClick={() => handleRejectRequest(request)}
-                      disabled={processingId === request.id}
-                    >
-                      <X className="w-4 h-4" />
                     </Button>
                   </div>
                 </div>
               ))}
             </div>
-          )}
-        </motion.div>
+          </motion.div>
+        )}
       </div>
     </div>
   );

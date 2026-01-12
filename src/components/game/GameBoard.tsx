@@ -1,37 +1,44 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trash2, Dice5, ArrowLeft, Wallet, Plus, Shield } from "lucide-react";
+import { Trash2, Dice5, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AnimalCard from "./AnimalCard";
 import DiceBowl from "./DiceBowl";
 import BetSelector from "./BetSelector";
-import { ANIMALS, BET_AMOUNTS, AnimalType, Bet, formatMoney } from "@/lib/game";
+import ProfileMenu from "./ProfileMenu";
+import { ANIMALS, BET_AMOUNTS, AnimalType, formatMoney } from "@/lib/game";
 import { useToast } from "@/hooks/use-toast";
 
 interface GameBoardProps {
   balance: number;
   onBalanceChange: (newBalance: number) => void;
-  onBack: () => void;
+  onLogout: () => void;
+  username: string;
+  isAdmin: boolean;
 }
 
-const GameBoard = ({ balance, onBalanceChange, onBack }: GameBoardProps) => {
+const GameBoard = ({ balance, onBalanceChange, onLogout, username, isAdmin }: GameBoardProps) => {
   const [selectedBetAmount, setSelectedBetAmount] = useState(BET_AMOUNTS[0]);
   const [bets, setBets] = useState<Record<AnimalType, number>>({
     nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0
   });
   const [isShaking, setIsShaking] = useState(false);
   const [results, setResults] = useState<AnimalType[] | null>(null);
+  const [previousResults, setPreviousResults] = useState<AnimalType[]>([]);
+  const [canReveal, setCanReveal] = useState(false);
   const [winCounts, setWinCounts] = useState<Record<AnimalType, number>>({
     nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0
   });
   const [lastWinnings, setLastWinnings] = useState<number | null>(null);
+  const [pendingResults, setPendingResults] = useState<AnimalType[] | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const totalBet = Object.values(bets).reduce((sum, bet) => sum + bet, 0);
 
   const handleAnimalClick = (animalId: AnimalType) => {
-    if (isShaking) return;
+    if (isShaking || canReveal) return;
     
     if (balance < selectedBetAmount + totalBet - bets[animalId]) {
       toast({
@@ -52,7 +59,7 @@ const GameBoard = ({ balance, onBalanceChange, onBack }: GameBoardProps) => {
   };
 
   const handleClearBets = () => {
-    if (isShaking) return;
+    if (isShaking || canReveal) return;
     setBets({ nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 });
     setResults(null);
     setLastWinnings(null);
@@ -60,7 +67,7 @@ const GameBoard = ({ balance, onBalanceChange, onBack }: GameBoardProps) => {
   };
 
   const handleShake = () => {
-    if (isShaking || totalBet === 0) {
+    if (isShaking || totalBet === 0 || canReveal) {
       if (totalBet === 0) {
         toast({
           title: "Chưa đặt cược!",
@@ -76,7 +83,7 @@ const GameBoard = ({ balance, onBalanceChange, onBack }: GameBoardProps) => {
     setLastWinnings(null);
     setWinCounts({ nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 });
 
-    // Simulate dice roll after shake animation
+    // Roll dice after shake animation
     setTimeout(() => {
       const animalIds: AnimalType[] = ['nai', 'bau', 'ga', 'ca', 'cua', 'tom'];
       const diceResults: AnimalType[] = [
@@ -85,87 +92,97 @@ const GameBoard = ({ balance, onBalanceChange, onBack }: GameBoardProps) => {
         animalIds[Math.floor(Math.random() * 6)],
       ];
 
-      // Count occurrences
-      const counts: Record<AnimalType, number> = { nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 };
-      diceResults.forEach(r => counts[r]++);
-      setWinCounts(counts);
-
-      // Calculate winnings
-      let winnings = 0;
-      Object.entries(bets).forEach(([animal, betAmount]) => {
-        if (betAmount > 0 && counts[animal as AnimalType] > 0) {
-          winnings += betAmount * counts[animal as AnimalType] + betAmount;
-        }
-      });
-
-      // Calculate new balance
-      const netChange = winnings - totalBet;
-      const newBalance = balance + netChange;
-      
-      setResults(diceResults);
+      setPendingResults(diceResults);
       setIsShaking(false);
-      setLastWinnings(netChange);
-      onBalanceChange(newBalance);
+      setCanReveal(true);
+    }, 2000);
+  };
 
-      // Reset bets after showing results
-      setTimeout(() => {
-        setBets({ nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 });
-      }, 2000);
+  const handleBowlRevealed = () => {
+    if (!pendingResults) return;
 
-      // Show result toast
-      if (netChange > 0) {
-        toast({
-          title: "🎉 Thắng!",
-          description: `Bạn thắng ${formatMoney(netChange)}`,
-        });
-      } else if (netChange < 0) {
-        toast({
-          title: "😢 Thua rồi!",
-          description: `Bạn thua ${formatMoney(Math.abs(netChange))}`,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "🤝 Hòa!",
-          description: "Bạn không thắng không thua.",
-        });
+    setResults(pendingResults);
+    setPreviousResults(pendingResults);
+    setCanReveal(false);
+
+    // Count occurrences
+    const counts: Record<AnimalType, number> = { nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 };
+    pendingResults.forEach(r => counts[r]++);
+    setWinCounts(counts);
+
+    // Calculate winnings
+    let winnings = 0;
+    Object.entries(bets).forEach(([animal, betAmount]) => {
+      if (betAmount > 0 && counts[animal as AnimalType] > 0) {
+        winnings += betAmount * counts[animal as AnimalType] + betAmount;
       }
-    }, 1500);
+    });
+
+    // Calculate new balance
+    const netChange = winnings - totalBet;
+    const newBalance = balance + netChange;
+    
+    setLastWinnings(netChange);
+    onBalanceChange(newBalance);
+    setPendingResults(null);
+
+    // Reset bets after showing results
+    setTimeout(() => {
+      setBets({ nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 });
+    }, 2000);
+
+    // Show result toast
+    if (netChange > 0) {
+      toast({
+        title: "🎉 Thắng!",
+        description: `Bạn thắng ${formatMoney(netChange)}`,
+      });
+    } else if (netChange < 0) {
+      toast({
+        title: "😢 Thua rồi!",
+        description: `Bạn thua ${formatMoney(Math.abs(netChange))}`,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "🤝 Hòa!",
+        description: "Bạn không thắng không thua.",
+      });
+    }
   };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="flex items-center justify-between p-4">
-        <Button variant="gameOutline" size="sm" onClick={onBack}>
-          <ArrowLeft className="w-4 h-4 mr-1" />
-          Quay lại
-        </Button>
+      <header className="flex items-center justify-between p-4 border-b border-border">
+        <h1 className="text-xl md:text-2xl font-black text-foreground game-title">
+          🎲 Bầu Cua Tôm Cá
+        </h1>
         
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-full font-bold shadow-lg">
-            <Wallet className="w-5 h-5" />
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-primary text-primary-foreground px-3 py-2 rounded-full font-bold shadow-lg text-sm md:text-base">
+            <Wallet className="w-4 h-4 md:w-5 md:h-5" />
             {formatMoney(balance)}
           </div>
-          <div className="hidden md:flex items-center gap-2 bg-card text-card-foreground px-4 py-2 rounded-full font-medium border-2 border-primary">
-            🟢 Online
-          </div>
+          
+          <ProfileMenu
+            username={username}
+            balance={balance}
+            isAdmin={isAdmin}
+            onLogout={onLogout}
+          />
         </div>
       </header>
 
-      {/* Game Title */}
-      <div className="text-center py-4">
-        <h1 className="text-3xl md:text-4xl font-black text-foreground game-title text-shadow-gold flex items-center justify-center gap-3">
-          <span>🎲</span>
-          Bầu Cua Tôm Cá
-          <span>🎲</span>
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">Trò chơi dân gian Việt Nam</p>
-      </div>
-
       {/* Dice Bowl */}
-      <div className="flex justify-center py-6">
-        <DiceBowl isShaking={isShaking} results={results} />
+      <div className="flex justify-center py-4 md:py-6">
+        <DiceBowl 
+          isShaking={isShaking} 
+          results={results}
+          previousResults={previousResults}
+          onBowlRevealed={handleBowlRevealed}
+          canReveal={canReveal}
+        />
       </div>
 
       {/* Win/Loss indicator */}
@@ -217,7 +234,7 @@ const GameBoard = ({ balance, onBalanceChange, onBack }: GameBoardProps) => {
             variant="gameDanger"
             size="lg"
             onClick={handleClearBets}
-            disabled={isShaking || totalBet === 0}
+            disabled={isShaking || totalBet === 0 || canReveal}
             className="flex-1"
           >
             <Trash2 className="w-5 h-5 mr-2" />
@@ -227,11 +244,11 @@ const GameBoard = ({ balance, onBalanceChange, onBack }: GameBoardProps) => {
             variant="gameGold"
             size="lg"
             onClick={handleShake}
-            disabled={isShaking || totalBet === 0}
+            disabled={isShaking || totalBet === 0 || canReveal}
             className="flex-1"
           >
             <Dice5 className="w-5 h-5 mr-2" />
-            Lắc!
+            {isShaking ? "Đang lắc..." : canReveal ? "Kéo bát!" : "Lắc!"}
           </Button>
         </div>
         {totalBet > 0 && (
