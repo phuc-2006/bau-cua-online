@@ -1,6 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
 import { Trash2, Dice5, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AnimalCard from "./AnimalCard";
@@ -126,10 +125,11 @@ const GameBoard = ({ balance, onBalanceChange, onLogout, username, isAdmin }: Ga
     onBalanceChange(newBalance);
     setPendingResults(null);
 
-    // Reset bets after showing results
+    // Reset bets after showing results - wait 3 seconds for bowl to stay visible
     setTimeout(() => {
       setBets({ nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 });
-    }, 2000);
+      setLastWinnings(null);
+    }, 3000);
 
     // Show result toast
     if (netChange > 0) {
@@ -185,21 +185,6 @@ const GameBoard = ({ balance, onBalanceChange, onLogout, username, isAdmin }: Ga
         />
       </div>
 
-      {/* Win/Loss indicator */}
-      <AnimatePresence>
-        {lastWinnings !== null && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className={`text-center text-xl font-bold mb-4 ${
-              lastWinnings > 0 ? 'text-green-400' : lastWinnings < 0 ? 'text-red-400' : 'text-foreground'
-            }`}
-          >
-            {lastWinnings > 0 ? `+${formatMoney(lastWinnings)}` : lastWinnings < 0 ? formatMoney(lastWinnings) : 'Hòa'}
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Bet Selector */}
       <div className="px-4 pb-4">
