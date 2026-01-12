@@ -168,7 +168,7 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
             repeat: Infinity,
             ease: "easeInOut"
           } : {}}
-          className={`absolute z-20 w-72 h-72 md:w-80 md:h-80 rounded-full ${canReveal && !hasBeenDragged ? 'cursor-grab' : 'cursor-default'} active:cursor-grabbing`}
+          className={`absolute inset-0 z-20 w-72 h-72 md:w-80 md:h-80 m-auto rounded-full ${canReveal && !hasBeenDragged ? 'cursor-grab' : 'cursor-default'} active:cursor-grabbing`}
         >
           {/* Bowl dome effect */}
           <div 
