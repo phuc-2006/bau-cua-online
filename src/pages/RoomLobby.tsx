@@ -26,8 +26,6 @@ const RoomLobby = () => {
     const [creatingRoom, setCreatingRoom] = useState(false);
     const [joiningRoom, setJoiningRoom] = useState(false);
     const [roomCode, setRoomCode] = useState("");
-    const [joiningRoom, setJoiningRoom] = useState(false);
-    const [roomCode, setRoomCode] = useState("");
     const [waitingRooms, setWaitingRooms] = useState<any[]>([]);
     const navigate = useNavigate();
     const { toast } = useToast();
