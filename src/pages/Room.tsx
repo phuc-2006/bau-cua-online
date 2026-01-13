@@ -41,6 +41,8 @@ const Room = () => {
     const fetchIdRef = useRef(0);
     // Track if user has left (to prevent duplicate leaves)
     const hasLeftRef = useRef(false);
+    // Track if navigating to game (to prevent auto-leave when game starts)
+    const isNavigatingToGameRef = useRef(false);
 
     // Idempotent leave function - safe to call multiple times
     const leaveRoom = useCallback(async (userId: string, showToast = true) => {
@@ -99,6 +101,7 @@ const Room = () => {
 
         // If room is already playing, redirect to game
         if (roomData.status === 'playing') {
+            isNavigatingToGameRef.current = true;
             navigate(`/baucua/online/${roomId}`);
             return;
         }
@@ -223,9 +226,9 @@ const Room = () => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('beforeunload', handleBeforeUnload);
             
-            // Only auto-leave if we haven't explicitly left and component is unmounting
-            // due to navigation (not due to page refresh/close which is handled above)
-            if (!hasLeftRef.current && user?.id) {
+            // Only auto-leave if we haven't explicitly left and not navigating to game
+            // Skip auto-leave when transitioning to the game screen
+            if (!hasLeftRef.current && !isNavigatingToGameRef.current && user?.id) {
                 // Fire-and-forget leave on unmount
                 supabase
                     .from("room_players")
@@ -286,6 +289,7 @@ const Room = () => {
 
                     // Handle room status changes (e.g., game started)
                     if (newRoomData.status === 'playing') {
+                        isNavigatingToGameRef.current = true;
                         navigate(`/baucua/online/${roomId}`);
                         return;
                     }
@@ -374,6 +378,7 @@ const Room = () => {
                 description: "Đang khởi động trò chơi...",
             });
 
+            isNavigatingToGameRef.current = true;
             navigate(`/baucua/online/${roomId}`);
         } catch (error: any) {
             toast({
