@@ -17,16 +17,65 @@ import {
 import { formatMoney } from "@/lib/game";
 import ProfileMenu from "@/components/game/ProfileMenu";
 
+interface Player {
+    id: string;
+    username: string;
+    isHost: boolean;
+    odlUserId: string;
+}
+
 const Room = () => {
     const { roomId } = useParams<{ roomId: string }>();
     const [user, setUser] = useState<any>(null);
     const [profile, setProfile] = useState<any>(null);
     const [isAdmin, setIsAdmin] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [room, setRoom] = useState<any>(null);
     const [isHost, setIsHost] = useState(false);
-    const [players, setPlayers] = useState<Array<{ id: string; username: string; isHost: boolean }>>([]);
+    const [players, setPlayers] = useState<Player[]>([]);
     const navigate = useNavigate();
     const { toast } = useToast();
+
+    // Fetch room data and players
+    const fetchRoomData = async (userId: string) => {
+        if (!roomId) return;
+
+        // Fetch room info
+        const { data: roomData, error: roomError } = await supabase
+            .from("rooms")
+            .select("*")
+            .eq("id", roomId)
+            .maybeSingle();
+
+        if (roomError || !roomData) {
+            toast({
+                title: "Lỗi",
+                description: "Không tìm thấy phòng.",
+                variant: "destructive",
+            });
+            navigate("/rooms");
+            return;
+        }
+
+        setRoom(roomData);
+        setIsHost(roomData.host_id === userId);
+
+        // Fetch players with their profiles
+        const { data: playersData, error: playersError } = await supabase
+            .from("room_players")
+            .select("id, user_id, profiles!inner(username)")
+            .eq("room_id", roomId);
+
+        if (!playersError && playersData) {
+            const formattedPlayers = playersData.map((p: any) => ({
+                id: p.id,
+                username: p.profiles.username,
+                isHost: p.user_id === roomData.host_id,
+                odlUserId: p.user_id
+            }));
+            setPlayers(formattedPlayers);
+        }
+    };
 
     useEffect(() => {
         const fetchData = async () => {
@@ -47,13 +96,6 @@ const Room = () => {
 
             if (profileData) {
                 setProfile(profileData);
-
-                // Simulate being the host if first to join
-                // In real implementation, this would check the database
-                setIsHost(true);
-                setPlayers([
-                    { id: session.user.id, username: profileData.username, isHost: true }
-                ]);
             }
 
             const { data: roleData } = await supabase
@@ -64,11 +106,54 @@ const Room = () => {
                 .maybeSingle();
 
             setIsAdmin(!!roleData);
+
+            await fetchRoomData(session.user.id);
             setLoading(false);
         };
 
         fetchData();
-    }, [navigate]);
+    }, [navigate, roomId]);
+
+    // Realtime subscription for players
+    useEffect(() => {
+        if (!roomId || !user) return;
+
+        const channel = supabase
+            .channel(`room-${roomId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'room_players',
+                    filter: `room_id=eq.${roomId}`
+                },
+                () => {
+                    // Refetch players when changes occur
+                    fetchRoomData(user.id);
+                }
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'rooms',
+                    filter: `id=eq.${roomId}`
+                },
+                (payload) => {
+                    // Handle room status changes (e.g., game started)
+                    if (payload.new && (payload.new as any).status === 'playing') {
+                        navigate(`/game/online/${roomId}`);
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [roomId, user, navigate]);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -76,8 +161,8 @@ const Room = () => {
     };
 
     const copyRoomCode = () => {
-        if (roomId) {
-            navigator.clipboard.writeText(roomId);
+        if (room?.code) {
+            navigator.clipboard.writeText(room.code);
             toast({
                 title: "Đã sao chép!",
                 description: "Mã phòng đã được sao chép vào clipboard.",
@@ -85,21 +170,74 @@ const Room = () => {
         }
     };
 
-    const handleStartGame = () => {
-        toast({
-            title: "Bắt đầu game!",
-            description: "Đang khởi động trò chơi...",
-        });
-        // In real implementation, this would start the multiplayer game
-        navigate("/game");
+    const handleStartGame = async () => {
+        if (!roomId || !isHost) return;
+
+        try {
+            // Update room status to playing
+            const { error: roomError } = await supabase
+                .from("rooms")
+                .update({ status: 'playing' })
+                .eq("id", roomId);
+
+            if (roomError) throw roomError;
+
+            // Create a new game session
+            const { error: sessionError } = await supabase
+                .from("game_sessions")
+                .insert({
+                    room_id: roomId,
+                    status: 'betting'
+                });
+
+            if (sessionError) throw sessionError;
+
+            toast({
+                title: "Bắt đầu game!",
+                description: "Đang khởi động trò chơi...",
+            });
+
+            navigate(`/game/online/${roomId}`);
+        } catch (error: any) {
+            toast({
+                title: "Lỗi",
+                description: error.message || "Không thể bắt đầu game.",
+                variant: "destructive",
+            });
+        }
     };
 
-    const handleLeaveRoom = () => {
-        toast({
-            title: "Rời phòng",
-            description: "Bạn đã rời khỏi phòng.",
-        });
-        navigate("/rooms");
+    const handleLeaveRoom = async () => {
+        if (!roomId || !user) return;
+
+        try {
+            // Remove player from room
+            await supabase
+                .from("room_players")
+                .delete()
+                .eq("room_id", roomId)
+                .eq("user_id", user.id);
+
+            // If host leaves, delete the room
+            if (isHost) {
+                await supabase
+                    .from("rooms")
+                    .delete()
+                    .eq("id", roomId);
+            }
+
+            toast({
+                title: "Rời phòng",
+                description: "Bạn đã rời khỏi phòng.",
+            });
+            navigate("/rooms");
+        } catch (error: any) {
+            toast({
+                title: "Lỗi",
+                description: error.message || "Có lỗi xảy ra.",
+                variant: "destructive",
+            });
+        }
     };
 
     if (loading) {
@@ -153,7 +291,7 @@ const Room = () => {
                         <p className="text-sm text-muted-foreground mb-2">Mã phòng</p>
                         <div className="flex items-center justify-center gap-2">
                             <span className="text-4xl font-black text-primary tracking-widest">
-                                {roomId}
+                                {room?.code || roomId}
                             </span>
                             <Button variant="ghost" size="sm" onClick={copyRoomCode}>
                                 <Copy className="w-5 h-5" />
@@ -175,7 +313,7 @@ const Room = () => {
                     <div className="flex items-center gap-2 mb-4">
                         <Users className="w-5 h-5 text-muted-foreground" />
                         <h3 className="text-lg font-bold text-card-foreground">
-                            Người chơi ({players.length}/6)
+                            Người chơi ({players.length}/{room?.max_players || 6})
                         </h3>
                     </div>
 
@@ -206,7 +344,7 @@ const Room = () => {
                         ))}
 
                         {/* Empty slots */}
-                        {Array.from({ length: 6 - players.length }).map((_, index) => (
+                        {Array.from({ length: (room?.max_players || 6) - players.length }).map((_, index) => (
                             <div
                                 key={`empty-${index}`}
                                 className="flex items-center justify-center p-3 bg-muted/50 rounded-xl border-2 border-dashed border-border"

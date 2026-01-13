@@ -27,6 +27,7 @@ const RoomLobby = () => {
     const [joiningRoom, setJoiningRoom] = useState(false);
     const [roomCode, setRoomCode] = useState("");
     const [createdRoomCode, setCreatedRoomCode] = useState<string | null>(null);
+    const [createdRoomId, setCreatedRoomId] = useState<string | null>(null);
     const navigate = useNavigate();
     const { toast } = useToast();
 
@@ -80,13 +81,38 @@ const RoomLobby = () => {
     };
 
     const handleCreateRoom = async () => {
+        if (!user) return;
         setCreatingRoom(true);
 
         try {
             const code = generateRoomCode();
 
-            // For now, just show the code (database integration will come later)
+            // Create room in database
+            const { data: roomData, error: roomError } = await supabase
+                .from("rooms")
+                .insert({
+                    code: code,
+                    host_id: user.id,
+                    status: 'waiting',
+                    max_players: 6
+                })
+                .select()
+                .single();
+
+            if (roomError) throw roomError;
+
+            // Add host as first player
+            const { error: playerError } = await supabase
+                .from("room_players")
+                .insert({
+                    room_id: roomData.id,
+                    user_id: user.id
+                });
+
+            if (playerError) throw playerError;
+
             setCreatedRoomCode(code);
+            setCreatedRoomId(roomData.id);
 
             toast({
                 title: "Tạo phòng thành công!",
@@ -113,17 +139,74 @@ const RoomLobby = () => {
             return;
         }
 
+        if (!user) return;
         setJoiningRoom(true);
 
         try {
-            // For now, navigate to room page (database integration will come later)
+            // Find room by code
+            const { data: roomData, error: roomError } = await supabase
+                .from("rooms")
+                .select("*")
+                .eq("code", roomCode.toUpperCase())
+                .eq("status", "waiting")
+                .maybeSingle();
+
+            if (roomError) throw roomError;
+
+            if (!roomData) {
+                toast({
+                    title: "Không tìm thấy phòng",
+                    description: "Mã phòng không tồn tại hoặc phòng đã bắt đầu.",
+                    variant: "destructive",
+                });
+                setJoiningRoom(false);
+                return;
+            }
+
+            // Check if room is full
+            const { count, error: countError } = await supabase
+                .from("room_players")
+                .select("*", { count: "exact", head: true })
+                .eq("room_id", roomData.id);
+
+            if (countError) throw countError;
+
+            if (count && count >= roomData.max_players) {
+                toast({
+                    title: "Phòng đã đầy",
+                    description: "Phòng này đã đạt số người chơi tối đa.",
+                    variant: "destructive",
+                });
+                setJoiningRoom(false);
+                return;
+            }
+
+            // Check if already in room
+            const { data: existingPlayer } = await supabase
+                .from("room_players")
+                .select("id")
+                .eq("room_id", roomData.id)
+                .eq("user_id", user.id)
+                .maybeSingle();
+
+            if (!existingPlayer) {
+                // Join the room
+                const { error: joinError } = await supabase
+                    .from("room_players")
+                    .insert({
+                        room_id: roomData.id,
+                        user_id: user.id
+                    });
+
+                if (joinError) throw joinError;
+            }
+
             toast({
-                title: "Đang tham gia phòng...",
-                description: `Mã phòng: ${roomCode.toUpperCase()}`,
+                title: "Tham gia thành công!",
+                description: `Đang vào phòng ${roomCode.toUpperCase()}...`,
             });
 
-            // Navigate to room (will be implemented with full database support)
-            navigate(`/room/${roomCode.toUpperCase()}`);
+            navigate(`/room/${roomData.id}`);
         } catch (error: any) {
             toast({
                 title: "Lỗi tham gia phòng",
@@ -231,7 +314,7 @@ const RoomLobby = () => {
                                     variant="gameGold"
                                     size="lg"
                                     className="w-full"
-                                    onClick={() => navigate(`/room/${createdRoomCode}`)}
+                                    onClick={() => navigate(`/room/${createdRoomId}`)}
                                 >
                                     <Play className="w-5 h-5 mr-2" />
                                     Vào Phòng
@@ -240,7 +323,10 @@ const RoomLobby = () => {
                                 <Button
                                     variant="outline"
                                     className="w-full"
-                                    onClick={() => setCreatedRoomCode(null)}
+                                    onClick={() => {
+                                        setCreatedRoomCode(null);
+                                        setCreatedRoomId(null);
+                                    }}
                                 >
                                     Tạo phòng khác
                                 </Button>
