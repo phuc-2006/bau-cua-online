@@ -14,9 +14,9 @@ const AnimalCard = ({ animal, isSelected, betAmount, onClick, isWinner, winCount
   return (
     <motion.button
       onClick={onClick}
-      className={`relative flex flex-col items-center justify-center p-4 rounded-xl border-4 transition-all duration-200 ${isSelected
-        ? 'border-primary bg-card shadow-lg ring-2 ring-primary/50'
-        : 'border-primary/60 bg-card hover:border-primary hover:shadow-md'
+      className={`relative flex flex-col items-center justify-center p-4 rounded-xl border-4 transition-all duration-200 bg-white ${isSelected
+        ? 'border-primary shadow-lg ring-2 ring-primary/50'
+        : 'border-primary/60 hover:border-primary hover:shadow-md'
         } ${isWinner ? 'ring-4 ring-green-500 animate-pulse-gold' : ''}`}
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
@@ -36,7 +36,7 @@ const AnimalCard = ({ animal, isSelected, betAmount, onClick, isWinner, winCount
         </div>
       ) : null}
       <span className={`text-5xl md:text-6xl mb-2 ${animal.image ? 'hidden' : ''}`}>{animal.emoji}</span>
-      <span className="text-base font-semibold text-card-foreground">{animal.name}</span>
+      <span className="text-base font-semibold text-gray-800">{animal.name}</span>
 
       {betAmount > 0 && (
         <motion.div

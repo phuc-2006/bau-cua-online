@@ -188,7 +188,7 @@ const Deposit = () => {
 
   return (
     <div className="min-h-screen bg-background p-4">
-      <div className="max-w-md mx-auto">
+      <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <Button variant="gameOutline" onClick={() => navigate("/baucua")}>

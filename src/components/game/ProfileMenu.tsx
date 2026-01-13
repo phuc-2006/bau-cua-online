@@ -79,17 +79,6 @@ const ProfileMenu = ({ username, balance, isAdmin, onLogout }: ProfileMenuProps)
                   <span>Trang chủ</span>
                 </button>
 
-                <button
-                  onClick={() => {
-                    setIsOpen(false);
-                    navigate("/deposit");
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 transition-colors text-card-foreground"
-                >
-                  <Wallet className="w-5 h-5 text-primary" />
-                  <span>Nạp tiền</span>
-                </button>
-
                 {isAdmin && (
                   <button
                     onClick={() => {

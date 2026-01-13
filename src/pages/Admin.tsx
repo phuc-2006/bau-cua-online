@@ -118,20 +118,35 @@ const Admin = () => {
   };
 
   const fetchDepositRequests = async () => {
-    const { data, error } = await supabase
+    // Fetch pending deposit requests
+    const { data: requestsData, error } = await supabase
       .from("deposit_requests")
-      .select(`
-        *,
-        profiles:user_id (
-          username
-        )
-      `)
+      .select("*")
       .eq("status", "pending")
       .order("created_at", { ascending: false });
 
-    if (!error && data) {
-      setDepositRequests(data as any);
+    if (error || !requestsData) {
+      console.error("Error fetching deposit requests:", error);
+      return;
     }
+
+    // Fetch usernames for each request
+    const requestsWithUsernames = await Promise.all(
+      requestsData.map(async (req) => {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("username")
+          .eq("user_id", req.user_id)
+          .maybeSingle();
+
+        return {
+          ...req,
+          profiles: profileData || { username: "Ẩn danh" }
+        };
+      })
+    );
+
+    setDepositRequests(requestsWithUsernames as any);
   };
 
   const handleAddMoney = async () => {
