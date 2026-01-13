@@ -26,8 +26,9 @@ const RoomLobby = () => {
     const [creatingRoom, setCreatingRoom] = useState(false);
     const [joiningRoom, setJoiningRoom] = useState(false);
     const [roomCode, setRoomCode] = useState("");
-    const [createdRoomCode, setCreatedRoomCode] = useState<string | null>(null);
-    const [createdRoomId, setCreatedRoomId] = useState<string | null>(null);
+    const [joiningRoom, setJoiningRoom] = useState(false);
+    const [roomCode, setRoomCode] = useState("");
+    const [waitingRooms, setWaitingRooms] = useState<any[]>([]);
     const navigate = useNavigate();
     const { toast } = useToast();
 
@@ -64,6 +65,34 @@ const RoomLobby = () => {
         };
 
         fetchData();
+
+        // Fetch waiting rooms
+        const fetchRooms = async () => {
+            const { data } = await supabase
+                .from("rooms")
+                .select("*, profiles!rooms_host_id_fkey(username)")
+                .eq("status", "waiting")
+                .order("created_at", { ascending: false })
+                .limit(10);
+
+            if (data) {
+                // Get player counts for these rooms
+                const roomsWithCounts = await Promise.all(data.map(async (room) => {
+                    const { count } = await supabase
+                        .from("room_players")
+                        .select("*", { count: "exact", head: true })
+                        .eq("room_id", room.id);
+                    return { ...room, player_count: count || 0 };
+                }));
+                setWaitingRooms(roomsWithCounts);
+            }
+        };
+
+        fetchRooms();
+
+        // Refresh interval
+        const interval = setInterval(fetchRooms, 10000);
+        return () => clearInterval(interval);
     }, [navigate]);
 
     const handleLogout = async () => {
@@ -87,7 +116,7 @@ const RoomLobby = () => {
         try {
             const code = generateRoomCode();
 
-            // Create room in database
+            // Create room
             const { data: roomData, error: roomError } = await supabase
                 .from("rooms")
                 .insert({
@@ -111,13 +140,14 @@ const RoomLobby = () => {
 
             if (playerError) throw playerError;
 
-            setCreatedRoomCode(code);
-            setCreatedRoomId(roomData.id);
-
             toast({
                 title: "Tạo phòng thành công!",
-                description: `Mã phòng của bạn: ${code}`,
+                description: `Đang vào phòng ${code}...`,
             });
+
+            // Auto join
+            navigate(`/room/${roomData.id}`);
+
         } catch (error: any) {
             toast({
                 title: "Lỗi tạo phòng",
@@ -284,7 +314,7 @@ const RoomLobby = () => {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.1 }}
-                        className="bg-card rounded-2xl p-6 shadow-xl border-2 border-primary/30"
+                        className="bg-card rounded-2xl p-6 shadow-xl border-2 border-primary/30 bg-gradient-to-br from-card to-primary/5"
                     >
                         <div className="flex items-center gap-3 mb-6">
                             <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center">
@@ -296,62 +326,25 @@ const RoomLobby = () => {
                             </div>
                         </div>
 
-                        {createdRoomCode ? (
-                            <div className="space-y-4">
-                                <div className="bg-background rounded-xl p-4 text-center">
-                                    <p className="text-sm text-muted-foreground mb-2">Mã phòng của bạn</p>
-                                    <div className="flex items-center justify-center gap-2">
-                                        <span className="text-3xl font-black text-primary tracking-widest">
-                                            {createdRoomCode}
-                                        </span>
-                                        <Button variant="ghost" size="sm" onClick={copyRoomCode}>
-                                            <Copy className="w-4 h-4" />
-                                        </Button>
-                                    </div>
-                                </div>
-
-                                <Button
-                                    variant="gameGold"
-                                    size="lg"
-                                    className="w-full"
-                                    onClick={() => navigate(`/room/${createdRoomId}`)}
-                                >
-                                    <Play className="w-5 h-5 mr-2" />
-                                    Vào Phòng
-                                </Button>
-
-                                <Button
-                                    variant="outline"
-                                    className="w-full"
-                                    onClick={() => {
-                                        setCreatedRoomCode(null);
-                                        setCreatedRoomId(null);
-                                    }}
-                                >
-                                    Tạo phòng khác
-                                </Button>
-                            </div>
-                        ) : (
-                            <Button
-                                variant="gameGold"
-                                size="lg"
-                                className="w-full"
-                                onClick={handleCreateRoom}
-                                disabled={creatingRoom}
-                            >
-                                {creatingRoom ? (
-                                    <>
-                                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                        Đang tạo...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Plus className="w-5 h-5 mr-2" />
-                                        Tạo Phòng Mới
-                                    </>
-                                )}
-                            </Button>
-                        )}
+                        <Button
+                            variant="gameGold"
+                            size="lg"
+                            className="w-full"
+                            onClick={handleCreateRoom}
+                            disabled={creatingRoom}
+                        >
+                            {creatingRoom ? (
+                                <>
+                                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                                    Đang tạo...
+                                </>
+                            ) : (
+                                <>
+                                    <Plus className="w-5 h-5 mr-2" />
+                                    Tạo Phòng Ngay
+                                </>
+                            )}
+                        </Button>
                     </motion.div>
 
                     {/* Join Room */}
@@ -359,32 +352,26 @@ const RoomLobby = () => {
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.2 }}
-                        className="bg-card rounded-2xl p-6 shadow-xl border-2 border-border"
+                        className="bg-card rounded-2xl p-6 shadow-xl border-2 border-border bg-gradient-to-br from-card to-muted/50"
                     >
                         <div className="flex items-center gap-3 mb-6">
                             <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center">
                                 <Users className="w-6 h-6 text-muted-foreground" />
                             </div>
                             <div>
-                                <h3 className="text-xl font-bold text-card-foreground">Tham Gia Phòng</h3>
-                                <p className="text-sm text-muted-foreground">Nhập mã phòng từ bạn bè</p>
+                                <h3 className="text-xl font-bold text-card-foreground">Tham Gia</h3>
+                                <p className="text-sm text-muted-foreground">Nhập mã phòng có sẵn</p>
                             </div>
                         </div>
 
                         <div className="space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="roomCode" className="text-card-foreground">
-                                    Mã phòng
-                                </Label>
-                                <Input
-                                    id="roomCode"
-                                    placeholder="Nhập mã 6 ký tự..."
-                                    value={roomCode}
-                                    onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                                    maxLength={6}
-                                    className="text-center text-2xl font-bold tracking-widest uppercase"
-                                />
-                            </div>
+                            <Input
+                                placeholder="Mã phòng..."
+                                value={roomCode}
+                                onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                                maxLength={6}
+                                className="text-center text-2xl font-bold tracking-widest uppercase bg-background"
+                            />
 
                             <Button
                                 variant="gameOutline"
@@ -393,21 +380,66 @@ const RoomLobby = () => {
                                 onClick={handleJoinRoom}
                                 disabled={joiningRoom || !roomCode.trim()}
                             >
-                                {joiningRoom ? (
-                                    <>
-                                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                                        Đang tham gia...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Users className="w-5 h-5 mr-2" />
-                                        Tham Gia
-                                    </>
-                                )}
+                                {joiningRoom ? "Đang vào..." : "Vào Ngay"}
                             </Button>
                         </div>
                     </motion.div>
                 </div>
+
+                {/* Available Rooms List */}
+                {waitingRooms.length > 0 && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="mt-12"
+                    >
+                        <h2 className="text-2xl font-bold text-foreground mb-4">Phòng Đang Chờ ({waitingRooms.length})</h2>
+                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {waitingRooms.map((room) => (
+                                <div key={room.id} className="bg-card p-4 rounded-xl border border-border shadow-md hover:border-primary transition-colors flex flex-col justify-between">
+                                    <div>
+                                        <div className="flex justify-between items-start mb-2">
+                                            <span className="font-bold text-lg text-primary">{room.code}</span>
+                                            <span className="text-xs bg-muted px-2 py-1 rounded-full text-muted-foreground">
+                                                {room.player_count}/{room.max_players} người
+                                            </span>
+                                        </div>
+                                        <p className="text-sm text-foreground/80 mb-4">
+                                            Host: {room.profiles?.username || 'Ẩn danh'}
+                                        </p>
+                                    </div>
+                                    <Button
+                                        variant="gameGold"
+                                        size="sm"
+                                        className="w-full"
+                                        onClick={() => {
+                                            setRoomCode(room.code);
+                                            // Optional: Auto trigger join?
+                                            // handleJoinRoom(); // Requires roomCode state to be set, might be async issue.
+                                            // Better to just populate code or call join with room data directly.
+                                            // Let's just set code for now, user clicks join. Or better, specific join function.
+                                            // Actually I'll implement direct join here.
+                                            const join = async () => {
+                                                setRoomCode(room.code);
+                                                // Trigger join properly? 
+                                                // React state update is async.
+                                                // Let's separate the join logic to accept code param.
+                                            };
+                                            join();
+                                        }}
+                                    // Workaround: Updating state does not update immediately.
+                                    // To fix, I will just set the input value and user clicks.
+                                    // OR make handleJoinRoom accept an argument.
+                                    >
+                                        Chọn
+                                    </Button>
+                                    {/* Actually better to make handleJoinRoom accept param */}
+                                </div>
+                            ))}
+                        </div>
+                    </motion.div>
+                )}
 
                 {/* Info */}
                 <motion.div

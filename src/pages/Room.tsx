@@ -61,19 +61,22 @@ const Room = () => {
         setIsHost(roomData.host_id === userId);
 
         // Fetch players with their profiles
+        // Use left join (profiles instead of profiles!inner) to ensure player is returned even if profile is missing
         const { data: playersData, error: playersError } = await supabase
             .from("room_players")
-            .select("id, user_id, profiles!inner(username)")
+            .select("id, user_id, profiles(username)")
             .eq("room_id", roomId);
 
         if (!playersError && playersData) {
             const formattedPlayers = playersData.map((p: any) => ({
                 id: p.id,
-                username: p.profiles.username,
+                username: p.profiles?.username || "Người chơi ẩn danh",
                 isHost: p.user_id === roomData.host_id,
                 odlUserId: p.user_id
             }));
             setPlayers(formattedPlayers);
+        } else if (playersError) {
+            console.error("Error fetching players:", playersError);
         }
     };
 
@@ -324,7 +327,7 @@ const Room = () => {
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: 0.1 * index }}
-                                className="flex items-center justify-between p-3 bg-background rounded-xl"
+                                className="flex items-center justify-between p-4 bg-secondary/50 rounded-xl border border-secondary"
                             >
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center text-lg">
@@ -343,14 +346,13 @@ const Room = () => {
                             </motion.div>
                         ))}
 
-                        {/* Empty slots */}
                         {Array.from({ length: (room?.max_players || 6) - players.length }).map((_, index) => (
                             <div
                                 key={`empty-${index}`}
-                                className="flex items-center justify-center p-3 bg-muted/50 rounded-xl border-2 border-dashed border-border"
+                                className="flex items-center justify-center p-4 bg-muted/30 rounded-xl border-2 border-dashed border-muted-foreground/20"
                             >
-                                <span className="text-muted-foreground text-sm">
-                                    Đang chờ người chơi...
+                                <span className="text-muted-foreground text-sm font-medium">
+                                    Đang chờ...
                                 </span>
                             </div>
                         ))}
