@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, useMotionValue, animate } from "framer-motion";
 import { AnimalType, ANIMALS } from "@/lib/game";
 
@@ -43,8 +43,10 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
       // Keep the bowl at the dropped position - don't spring back
       setIsRevealed(true);
       setHasBeenDragged(true);
-      onBowlRevealed?.();
-      // Bowl stays at current position until new round starts (isShaking becomes true)
+      // Call the callback to reveal results
+      if (onBowlRevealed) {
+        onBowlRevealed();
+      }
     } else {
       // Spring back only if not dragged far enough
       animate(x, 0, { type: "spring", stiffness: 300, damping: 25 });
@@ -52,16 +54,19 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
     }
   };
 
-  // Reset when new shake starts
-  if (isShaking && isRevealed) {
-    setIsRevealed(false);
-    setHasBeenDragged(false);
-    x.set(0);
-    y.set(0);
-  }
+  // Reset when new shake starts - use effect to prevent state update during render
+  useEffect(() => {
+    if (isShaking) {
+      setIsRevealed(false);
+      setHasBeenDragged(false);
+      x.set(0);
+      y.set(0);
+    }
+  }, [isShaking, x, y]);
 
   // Bowl is always visible - covers the plate at all times
   const showBowl = true;
+
 
   return (
     <div ref={constraintsRef} className="relative flex items-center justify-center" style={{ width: 320, height: 320 }}>
