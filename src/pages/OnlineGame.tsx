@@ -236,9 +236,40 @@ const OnlineGame = () => {
         }
     };
 
-    // Realtime subscriptions - subscribe to room_id for new sessions
+    // Realtime subscriptions - subscribe to room_id for new sessions + player join/leave
     useEffect(() => {
         if (!roomId) return;
+
+        // Small helper: update players list immediately, then reconcile by refetch
+        const removePlayerLocal = (userId?: string, rowId?: string) => {
+            if (!userId && !rowId) return;
+            setPlayers(prev => prev.filter(p => (rowId ? p.id !== rowId : true) && (userId ? p.odlUserId !== userId : true)));
+        };
+
+        const addPlayerLocal = async (userId?: string, rowId?: string) => {
+            if (!userId || !rowId) return;
+
+            // Avoid duplicates
+            setPlayers(prev => {
+                if (prev.some(p => p.id === rowId || p.odlUserId === userId)) return prev;
+                return [...prev, { id: rowId, username: "Đang tải...", isHost: false, odlUserId: userId }];
+            });
+
+            // Hydrate username + host flag (best-effort)
+            const [{ data: profileData }, { data: roomData }] = await Promise.all([
+                supabase.from("profiles").select("user_id, username").eq("user_id", userId).maybeSingle(),
+                supabase.from("rooms").select("host_id").eq("id", roomId).maybeSingle(),
+            ]);
+
+            setPlayers(prev => prev.map(p => {
+                if (p.id !== rowId && p.odlUserId !== userId) return p;
+                return {
+                    ...p,
+                    username: profileData?.username || p.username || "Người chơi ẩn danh",
+                    isHost: userId === roomData?.host_id,
+                };
+            }));
+        };
 
         const channel = supabase
             .channel(`online-game-${roomId}`)
@@ -289,7 +320,7 @@ const OnlineGame = () => {
                     }
                 }
             )
-            // Listen for INSERT with filter (works correctly)
+            // Player JOIN (filtered)
             .on(
                 'postgres_changes',
                 {
@@ -298,11 +329,14 @@ const OnlineGame = () => {
                     table: 'room_players',
                     filter: `room_id=eq.${roomId}`
                 },
-                () => {
-                    fetchPlayers();
+                (payload) => {
+                    const row = payload.new as any;
+                    void addPlayerLocal(row?.user_id, row?.id);
+                    // Reconcile to ensure host flags + ordering are correct
+                    void fetchPlayers();
                 }
             )
-            // Listen for DELETE WITHOUT filter (Supabase can't filter DELETE by room_id since row is gone)
+            // Player LEAVE (no filter, check old.room_id)
             .on(
                 'postgres_changes',
                 {
@@ -311,11 +345,12 @@ const OnlineGame = () => {
                     table: 'room_players'
                 },
                 (payload) => {
-                    // Check if DELETE is for this room
-                    const oldRecord = payload.old as { room_id?: string };
-                    if (oldRecord?.room_id === roomId) {
-                        fetchPlayers();
-                    }
+                    const oldRow = payload.old as any;
+                    if (oldRow?.room_id !== roomId) return;
+
+                    removePlayerLocal(oldRow?.user_id, oldRow?.id);
+                    // Reconcile in case host transferred
+                    void fetchPlayers();
                 }
             )
             .subscribe();
@@ -323,7 +358,7 @@ const OnlineGame = () => {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [roomId]);
+    }, [roomId, toast]);
 
     // Auto-reveal dice bowl when status is revealed
     useEffect(() => {
