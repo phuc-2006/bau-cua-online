@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,12 +33,49 @@ const Room = () => {
     const [room, setRoom] = useState<any>(null);
     const [isHost, setIsHost] = useState(false);
     const [players, setPlayers] = useState<Player[]>([]);
+    const [isLeaving, setIsLeaving] = useState(false);
     const navigate = useNavigate();
     const { toast } = useToast();
+    
+    // Request sequence guard to prevent race conditions
+    const fetchIdRef = useRef(0);
+    // Track if user has left (to prevent duplicate leaves)
+    const hasLeftRef = useRef(false);
 
-    // Fetch room data and players
-    const fetchRoomData = async (userId: string) => {
+    // Idempotent leave function - safe to call multiple times
+    const leaveRoom = useCallback(async (userId: string, showToast = true) => {
+        if (!roomId || hasLeftRef.current) return;
+        
+        hasLeftRef.current = true;
+        
+        try {
+            const { error } = await supabase
+                .from("room_players")
+                .delete()
+                .eq("room_id", roomId)
+                .eq("user_id", userId);
+
+            // Ignore "not found" errors - player might already have left
+            if (error && !error.message?.includes('No rows')) {
+                console.error("Leave room error:", error);
+            }
+            
+            if (showToast) {
+                toast({
+                    title: "Rời phòng",
+                    description: "Bạn đã rời khỏi phòng.",
+                });
+            }
+        } catch (err) {
+            console.error("Leave room exception:", err);
+        }
+    }, [roomId, toast]);
+
+    // Fetch room data and players with sequence guard
+    const fetchRoomData = useCallback(async (userId: string) => {
         if (!roomId) return;
+
+        const currentFetchId = ++fetchIdRef.current;
 
         // Fetch room info
         const { data: roomData, error: roomError } = await supabase
@@ -46,6 +83,9 @@ const Room = () => {
             .select("*")
             .eq("id", roomId)
             .maybeSingle();
+
+        // Check if this is still the latest request
+        if (currentFetchId !== fetchIdRef.current) return;
 
         if (roomError || !roomData) {
             toast({
@@ -72,6 +112,9 @@ const Room = () => {
             .select("id, user_id")
             .eq("room_id", roomId);
 
+        // Check again if this is still the latest request
+        if (currentFetchId !== fetchIdRef.current) return;
+
         if (!playersError && playersData) {
             // Fetch profiles for all players
             const userIds = playersData.map(p => p.user_id);
@@ -79,6 +122,9 @@ const Room = () => {
                 .from("profiles")
                 .select("user_id, username")
                 .in("user_id", userIds);
+
+            // Final check before updating state
+            if (currentFetchId !== fetchIdRef.current) return;
 
             const profilesMap = new Map(
                 (profilesData || []).map(p => [p.user_id, p.username])
@@ -94,7 +140,7 @@ const Room = () => {
         } else if (playersError) {
             console.error("Error fetching players:", playersError);
         }
-    };
+    }, [roomId, navigate, toast]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -131,18 +177,65 @@ const Room = () => {
         };
 
         fetchData();
-    }, [navigate, roomId]);
+    }, [navigate, roomId, fetchRoomData]);
 
-    // Polling fallback - refetch players every 3 seconds to ensure sync
+    // Polling fallback - refetch players every 5 seconds (reduced frequency)
     useEffect(() => {
         if (!roomId || !user || loading) return;
 
         const interval = setInterval(() => {
             fetchRoomData(user.id);
-        }, 3000);
+        }, 5000);
 
         return () => clearInterval(interval);
-    }, [roomId, user, loading]);
+    }, [roomId, user, loading, fetchRoomData]);
+
+    // Auto-leave on unmount and page visibility/close
+    useEffect(() => {
+        if (!roomId || !user) return;
+
+        // Handle page visibility change (tab switch, minimize)
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden' && !hasLeftRef.current) {
+                // Fire-and-forget leave when tab becomes hidden
+                // Using sendBeacon would be ideal but Supabase doesn't support it
+                // This is a best-effort attempt
+            }
+        };
+
+        // Handle page unload (close tab, navigate away)
+        const handleBeforeUnload = () => {
+            if (!hasLeftRef.current && user?.id) {
+                // Synchronous attempt to leave - won't always work
+                // The DB trigger will clean up orphaned players eventually
+                navigator.sendBeacon && navigator.sendBeacon(
+                    `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/room_players?room_id=eq.${roomId}&user_id=eq.${user.id}`,
+                    ''
+                );
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        // Cleanup on unmount - attempt to leave room
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            
+            // Only auto-leave if we haven't explicitly left and component is unmounting
+            // due to navigation (not due to page refresh/close which is handled above)
+            if (!hasLeftRef.current && user?.id) {
+                // Fire-and-forget leave on unmount
+                supabase
+                    .from("room_players")
+                    .delete()
+                    .eq("room_id", roomId)
+                    .eq("user_id", user.id)
+                    .then(() => {});
+            }
+        };
+    }, [roomId, user]);
 
     // Realtime subscription for players and room updates
     useEffect(() => {
@@ -165,7 +258,6 @@ const Room = () => {
                     filter: `room_id=eq.${roomId}`
                 },
                 () => {
-                    console.log('Player joined room');
                     refetchData();
                 }
             )
@@ -178,7 +270,6 @@ const Room = () => {
                     filter: `room_id=eq.${roomId}`
                 },
                 () => {
-                    console.log('Player left room');
                     refetchData();
                 }
             )
@@ -192,7 +283,6 @@ const Room = () => {
                 },
                 (payload) => {
                     const newRoomData = payload.new as any;
-                    console.log('Room updated:', newRoomData);
 
                     // Handle room status changes (e.g., game started)
                     if (newRoomData.status === 'playing') {
@@ -231,17 +321,16 @@ const Room = () => {
                         description: "Phòng đã bị xóa.",
                         variant: "destructive",
                     });
+                    hasLeftRef.current = true; // Prevent auto-leave on unmount
                     navigate("/rooms");
                 }
             )
-            .subscribe((status) => {
-                console.log('Subscription status:', status);
-            });
+            .subscribe();
 
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [roomId, user, navigate, toast]);
+    }, [roomId, user, navigate, toast, fetchRoomData]);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -296,27 +385,12 @@ const Room = () => {
     };
 
     const handleLeaveRoom = async () => {
-        if (!roomId || !user) return;
+        if (!roomId || !user || isLeaving) return;
 
+        setIsLeaving(true);
+        
         try {
-            // Remove player from room - the database trigger will handle:
-            // 1. Deleting the room if no players remain
-            // 2. Transferring host to another player if host leaves
-            const { error } = await supabase
-                .from("room_players")
-                .delete()
-                .eq("room_id", roomId)
-                .eq("user_id", user.id);
-
-            if (error) throw error;
-
-            toast({
-                title: "Rời phòng",
-                description: isHost 
-                    ? "Bạn đã rời khỏi phòng. Quyền chủ phòng đã được chuyển giao."
-                    : "Bạn đã rời khỏi phòng.",
-            });
-
+            await leaveRoom(user.id, true);
             navigate("/rooms");
         } catch (error: any) {
             toast({
@@ -324,6 +398,9 @@ const Room = () => {
                 description: error.message || "Có lỗi xảy ra.",
                 variant: "destructive",
             });
+            hasLeftRef.current = false; // Reset so user can try again
+        } finally {
+            setIsLeaving(false);
         }
     };
 
@@ -340,8 +417,17 @@ const Room = () => {
             {/* Header */}
             <header className="flex items-center justify-between p-4 border-b border-border">
                 <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="sm" onClick={handleLeaveRoom}>
-                        <ArrowLeft className="w-4 h-4 mr-2" />
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={handleLeaveRoom}
+                        disabled={isLeaving}
+                    >
+                        {isLeaving ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                            <ArrowLeft className="w-4 h-4 mr-2" />
+                        )}
                         Sảnh chờ
                     </Button>
                     <h1 className="text-2xl font-black text-foreground game-title">
@@ -471,21 +557,26 @@ const Room = () => {
                         variant="gameDanger"
                         size="lg"
                         onClick={handleLeaveRoom}
+                        disabled={isLeaving}
                     >
-                        <LogOut className="w-5 h-5 mr-2" />
+                        {isLeaving ? (
+                            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        ) : (
+                            <LogOut className="w-5 h-5 mr-2" />
+                        )}
                         Rời phòng
                     </Button>
                 </motion.div>
 
-                {/* Info */}
-                <motion.p
+                {/* Room Info */}
+                <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.3 }}
-                    className="text-center text-muted-foreground text-sm mt-6"
+                    className="mt-6 text-center text-sm text-muted-foreground"
                 >
-                    💡 Chủ phòng có thể bắt đầu game khi có ít nhất 1 người chơi
-                </motion.p>
+                    <p>💡 Khi đủ người, chủ phòng có thể bắt đầu game</p>
+                </motion.div>
             </div>
         </div>
     );

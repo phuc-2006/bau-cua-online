@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +24,7 @@ interface RoomWithCount {
     status: 'waiting' | 'playing' | 'finished';
     max_players: number;
     created_at: string;
+    updated_at: string;
     player_count: number;
     host_username?: string;
 }
@@ -39,6 +40,9 @@ const RoomLobby = () => {
     const [rooms, setRooms] = useState<RoomWithCount[]>([]);
     const navigate = useNavigate();
     const { toast } = useToast();
+    
+    // Request sequence guard to prevent race conditions
+    const fetchIdRef = useRef(0);
 
     // Fetch all data
     useEffect(() => {
@@ -76,8 +80,10 @@ const RoomLobby = () => {
         fetchData();
     }, [navigate]);
 
-    // Fetch rooms with player counts
-    const fetchRooms = async () => {
+    // Fetch rooms with player counts - with sequence guard
+    const fetchRooms = useCallback(async () => {
+        const currentFetchId = ++fetchIdRef.current;
+        
         // Get all non-finished rooms
         const { data: roomsData } = await supabase
             .from("rooms")
@@ -86,39 +92,71 @@ const RoomLobby = () => {
             .order("created_at", { ascending: false })
             .limit(20);
 
-        if (roomsData) {
-            // Get player counts and host usernames for all rooms
-            const roomsWithDetails = await Promise.all(roomsData.map(async (room) => {
-                const { count } = await supabase
-                    .from("room_players")
-                    .select("*", { count: "exact", head: true })
-                    .eq("room_id", room.id);
+        // Check if this is still the latest request
+        if (currentFetchId !== fetchIdRef.current) return;
 
-                // Get host username
-                const { data: hostProfile } = await supabase
-                    .from("profiles")
-                    .select("username")
-                    .eq("user_id", room.host_id)
-                    .maybeSingle();
+        if (roomsData && roomsData.length > 0) {
+            // Batch fetch: get all player counts in one query
+            const roomIds = roomsData.map(r => r.id);
+            
+            // Get player counts for all rooms
+            const { data: playerCounts } = await supabase
+                .from("room_players")
+                .select("room_id")
+                .in("room_id", roomIds);
 
-                const playerCount = count || 0;
+            // Check again if this is still the latest request
+            if (currentFetchId !== fetchIdRef.current) return;
 
-                // Skip rooms with no players (they should be auto-deleted by trigger)
-                if (playerCount === 0) {
-                    return null;
-                }
+            // Count players per room
+            const countMap = new Map<string, number>();
+            (playerCounts || []).forEach(p => {
+                countMap.set(p.room_id, (countMap.get(p.room_id) || 0) + 1);
+            });
 
-                return {
-                    ...room,
-                    player_count: playerCount,
-                    host_username: hostProfile?.username || 'Ẩn danh'
-                };
-            }));
+            // Get host usernames in batch
+            const hostIds = [...new Set(roomsData.map(r => r.host_id))];
+            const { data: hostProfiles } = await supabase
+                .from("profiles")
+                .select("user_id, username")
+                .in("user_id", hostIds);
 
-            // Filter out null rooms (rooms with no players)
-            setRooms(roomsWithDetails.filter(r => r !== null) as RoomWithCount[]);
+            // Final check before updating state
+            if (currentFetchId !== fetchIdRef.current) return;
+
+            const hostMap = new Map(
+                (hostProfiles || []).map(p => [p.user_id, p.username])
+            );
+
+            // Build rooms with details, filtering out empty rooms
+            const roomsWithDetails = roomsData
+                .map(room => {
+                    const playerCount = countMap.get(room.id) || 0;
+                    
+                    // Skip rooms with no players (they should be auto-deleted by trigger)
+                    if (playerCount === 0) return null;
+
+                    return {
+                        id: room.id,
+                        code: room.code,
+                        host_id: room.host_id,
+                        status: room.status as 'waiting' | 'playing' | 'finished',
+                        max_players: room.max_players,
+                        created_at: room.created_at,
+                        updated_at: room.updated_at,
+                        player_count: playerCount,
+                        host_username: hostMap.get(room.host_id) || 'Ẩn danh'
+                    };
+                })
+                .filter((r): r is NonNullable<typeof r> => r !== null) as RoomWithCount[];
+
+            setRooms(roomsWithDetails);
+        } else {
+            if (currentFetchId === fetchIdRef.current) {
+                setRooms([]);
+            }
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchRooms();
@@ -141,16 +179,16 @@ const RoomLobby = () => {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, []);
+    }, [fetchRooms]);
 
-    // Polling fallback - refresh room list every 3 seconds
+    // Polling fallback - refresh room list every 5 seconds (reduced frequency)
     useEffect(() => {
         const interval = setInterval(() => {
             fetchRooms();
-        }, 3000);
+        }, 5000);
 
         return () => clearInterval(interval);
-    }, []);
+    }, [fetchRooms]);
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
@@ -462,10 +500,10 @@ const RoomLobby = () => {
                                     </p>
                                     <p className="text-sm text-muted-foreground mb-3">
                                         <Users className="w-4 h-4 inline mr-1" />
-                                        {room.player_count}/{room.max_players} người chơi
+                                        {room.player_count}/{room.max_players} người
                                     </p>
                                     <Button
-                                        variant="gameGold"
+                                        variant="gameOutline"
                                         size="sm"
                                         className="w-full"
                                         onClick={() => handleJoinRoom(room.code)}
@@ -505,16 +543,16 @@ const RoomLobby = () => {
                                     </p>
                                     <p className="text-sm text-muted-foreground mb-3">
                                         <Users className="w-4 h-4 inline mr-1" />
-                                        {room.player_count}/{room.max_players} người chơi
+                                        {room.player_count}/{room.max_players} người
                                     </p>
                                     <Button
                                         variant="gameOutline"
                                         size="sm"
                                         className="w-full"
                                         onClick={() => handleJoinRoom(room.code)}
-                                        disabled={joiningRoom || room.player_count >= room.max_players}
+                                        disabled={joiningRoom}
                                     >
-                                        {room.player_count >= room.max_players ? "Phòng đầy" : "Tham gia (chờ vòng mới)"}
+                                        Xem / Tham gia
                                     </Button>
                                 </div>
                             ))}
@@ -526,22 +564,21 @@ const RoomLobby = () => {
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        className="mt-10 text-center text-muted-foreground"
+                        transition={{ delay: 0.3 }}
+                        className="mt-10 text-center p-8 bg-muted/30 rounded-2xl border-2 border-dashed border-muted-foreground/20"
                     >
-                        <p>Chưa có phòng nào. Hãy tạo phòng đầu tiên!</p>
+                        <p className="text-muted-foreground text-lg mb-2">Chưa có phòng nào</p>
+                        <p className="text-sm text-muted-foreground">Hãy tạo phòng đầu tiên hoặc đợi bạn bè tạo phòng!</p>
                     </motion.div>
                 )}
 
-                {/* Info */}
                 <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
                     transition={{ delay: 0.5 }}
-                    className="mt-8 text-center"
+                    className="mt-8 text-center text-sm text-muted-foreground"
                 >
-                    <p className="text-muted-foreground text-sm">
-                        💡 Chia sẻ mã phòng để bạn bè có thể tham gia cùng bạn
-                    </p>
+                    <p>💡 Chia sẻ mã phòng cho bạn bè để chơi cùng nhau</p>
                 </motion.div>
             </div>
         </div>
