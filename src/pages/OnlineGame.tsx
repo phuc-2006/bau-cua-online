@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { useNavigate, useParams, Link } from "react-router-dom";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -67,8 +67,46 @@ const OnlineGame = () => {
     const navigate = useNavigate();
     const { toast } = useToast();
     const hasRevealedRef = useRef(false);
+    
+    // Leave room tracking
+    const hasLeftRef = useRef(false);
+    const [isLeaving, setIsLeaving] = useState(false);
+    const fetchIdRef = useRef(0);
 
     const totalBet = Object.values(bets).reduce((sum, bet) => sum + bet, 0);
+    
+    // Idempotent leave function
+    const leaveRoom = useCallback(async (userId: string, showToast = true) => {
+        if (hasLeftRef.current || !roomId) return;
+        hasLeftRef.current = true;
+        
+        try {
+            await supabase
+                .from("room_players")
+                .delete()
+                .eq("room_id", roomId)
+                .eq("user_id", userId);
+            
+            if (showToast) {
+                toast({
+                    title: "Đã rời phòng",
+                    description: "Bạn đã rời khỏi phòng chơi.",
+                });
+            }
+        } catch (error) {
+            console.error("Error leaving room:", error);
+            hasLeftRef.current = false;
+        }
+    }, [roomId, toast]);
+    
+    // Handle leave room button click
+    const handleLeaveRoom = async () => {
+        if (!user?.id || isLeaving) return;
+        
+        setIsLeaving(true);
+        await leaveRoom(user.id);
+        navigate("/rooms");
+    };
 
     // Count non-host players
     const nonHostPlayers = players.filter(p => !p.isHost);
@@ -150,14 +188,19 @@ const OnlineGame = () => {
         fetchData();
     }, [navigate, roomId]);
 
-    // Fetch players helper
+    // Fetch players helper with sequence guard
     const fetchPlayers = async () => {
         if (!roomId) return;
+        
+        const currentFetchId = ++fetchIdRef.current;
 
         const { data: playersData } = await supabase
             .from("room_players")
             .select("id, user_id")
             .eq("room_id", roomId);
+
+        // Abort if newer fetch started
+        if (currentFetchId !== fetchIdRef.current) return;
 
         if (playersData) {
             const userIds = playersData.map(p => p.user_id);
@@ -165,6 +208,9 @@ const OnlineGame = () => {
                 .from("profiles")
                 .select("user_id, username")
                 .in("user_id", userIds);
+
+            // Abort if newer fetch started
+            if (currentFetchId !== fetchIdRef.current) return;
 
             const profilesMap = new Map(
                 (profilesData || []).map(p => [p.user_id, p.username])
@@ -175,6 +221,9 @@ const OnlineGame = () => {
                 .select("host_id")
                 .eq("id", roomId)
                 .maybeSingle();
+
+            // Abort if newer fetch started
+            if (currentFetchId !== fetchIdRef.current) return;
 
             const formattedPlayers = playersData.map((p: any) => ({
                 id: p.id,
@@ -494,9 +543,27 @@ const OnlineGame = () => {
     };
 
     const handleLogout = async () => {
+        if (user?.id) {
+            await leaveRoom(user.id, false);
+        }
         await supabase.auth.signOut();
         navigate("/");
     };
+    
+    // Auto-leave on unmount
+    useEffect(() => {
+        return () => {
+            if (!hasLeftRef.current && user?.id && roomId) {
+                // Fire-and-forget leave on unmount
+                supabase
+                    .from("room_players")
+                    .delete()
+                    .eq("room_id", roomId)
+                    .eq("user_id", user.id)
+                    .then();
+            }
+        };
+    }, [user?.id, roomId]);
 
     const handleBowlRevealed = () => {
         if (session?.dice_results && !hasRevealedRef.current) {
@@ -518,12 +585,19 @@ const OnlineGame = () => {
             {/* Header */}
             <header className="flex items-center justify-between p-4 border-b border-border">
                 <div className="flex items-center gap-4">
-                    <Link to="/rooms">
-                        <Button variant="ghost" size="sm">
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={handleLeaveRoom}
+                        disabled={isLeaving}
+                    >
+                        {isLeaving ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
                             <ArrowLeft className="w-4 h-4 mr-2" />
-                            Sảnh chờ
-                        </Button>
-                    </Link>
+                        )}
+                        Sảnh chờ
+                    </Button>
                     <h1 className="text-xl md:text-2xl font-black text-foreground game-title">
                         🎲 Bầu Cua Online
                     </h1>
