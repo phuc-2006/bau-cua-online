@@ -12,6 +12,7 @@ import Admin from "./pages/Admin";
 import Deposit from "./pages/Deposit";
 import RoomLobby from "./pages/RoomLobby";
 import Room from "./pages/Room";
+import OnlineGame from "./pages/OnlineGame";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/games" element={<Games />} />
           <Route path="/rooms" element={<RoomLobby />} />
           <Route path="/room/:roomId" element={<Room />} />
+          <Route path="/game/online/:roomId" element={<OnlineGame />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/deposit" element={<Deposit />} />
           <Route path="*" element={<NotFound />} />
