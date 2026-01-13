@@ -133,6 +133,17 @@ const Room = () => {
         fetchData();
     }, [navigate, roomId]);
 
+    // Polling fallback - refetch players every 3 seconds to ensure sync
+    useEffect(() => {
+        if (!roomId || !user || loading) return;
+
+        const interval = setInterval(() => {
+            fetchRoomData(user.id);
+        }, 3000);
+
+        return () => clearInterval(interval);
+    }, [roomId, user, loading]);
+
     // Realtime subscription for players and room updates
     useEffect(() => {
         if (!roomId || !user) return;
