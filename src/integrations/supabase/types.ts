@@ -44,6 +44,79 @@ export type Database = {
         }
         Relationships: []
       }
+      game_bets: {
+        Row: {
+          amount: number
+          animal_type: string
+          created_at: string
+          id: string
+          session_id: string
+          user_id: string
+          winnings: number | null
+        }
+        Insert: {
+          amount: number
+          animal_type: string
+          created_at?: string
+          id?: string
+          session_id: string
+          user_id: string
+          winnings?: number | null
+        }
+        Update: {
+          amount?: number
+          animal_type?: string
+          created_at?: string
+          id?: string
+          session_id?: string
+          user_id?: string
+          winnings?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_bets_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "game_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_sessions: {
+        Row: {
+          created_at: string
+          dice_results: Json | null
+          ended_at: string | null
+          id: string
+          room_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          dice_results?: Json | null
+          ended_at?: string | null
+          id?: string
+          room_id: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          dice_results?: Json | null
+          ended_at?: string | null
+          id?: string
+          room_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_sessions_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           balance: number
@@ -68,6 +141,65 @@ export type Database = {
           updated_at?: string
           user_id?: string
           username?: string
+        }
+        Relationships: []
+      }
+      room_players: {
+        Row: {
+          id: string
+          joined_at: string
+          room_id: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          joined_at?: string
+          room_id: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          joined_at?: string
+          room_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_players_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rooms: {
+        Row: {
+          code: string
+          created_at: string
+          host_id: string
+          id: string
+          max_players: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          host_id: string
+          id?: string
+          max_players?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          host_id?: string
+          id?: string
+          max_players?: number
+          status?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -99,6 +231,14 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_room_host: {
+        Args: { _room_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_room_player: {
+        Args: { _room_id: string; _user_id: string }
         Returns: boolean
       }
     }
