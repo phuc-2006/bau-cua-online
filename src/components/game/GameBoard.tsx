@@ -201,6 +201,7 @@ const GameBoard = ({ balance, onBalanceChange, onLogout, username, isAdmin }: Ga
           isShaking={isShaking}
           results={results}
           previousResults={previousResults}
+          pendingResults={pendingResults}
           onBowlRevealed={handleBowlRevealed}
           canReveal={canReveal}
         />

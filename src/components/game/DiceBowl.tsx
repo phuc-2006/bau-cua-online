@@ -6,11 +6,12 @@ interface DiceBowlProps {
   isShaking: boolean;
   results: AnimalType[] | null;
   previousResults: AnimalType[];
+  pendingResults?: AnimalType[] | null;
   onBowlRevealed?: () => void;
   canReveal: boolean;
 }
 
-const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReveal }: DiceBowlProps) => {
+const DiceBowl = ({ isShaking, results, previousResults, pendingResults, onBowlRevealed, canReveal }: DiceBowlProps) => {
   const [isRevealed, setIsRevealed] = useState(false);
   const [hasBeenDragged, setHasBeenDragged] = useState(false);
   const constraintsRef = useRef(null);
@@ -22,8 +23,11 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
     return ANIMALS.find(a => a.id === animalId)?.emoji || '❓';
   };
 
-  // Get dice faces - use previous results or random if first game
+  // Get dice faces - use pending (hidden) results if available, otherwise previous
   const getDiceFace = (index: number): AnimalType => {
+    if (pendingResults && pendingResults.length > 0) {
+      return pendingResults[index % pendingResults.length];
+    }
     if (previousResults.length > 0) {
       return previousResults[index % previousResults.length];
     }
@@ -66,7 +70,6 @@ const DiceBowl = ({ isShaking, results, previousResults, onBowlRevealed, canReve
 
   // Bowl is always visible - covers the plate at all times
   const showBowl = true;
-
 
   return (
     <div ref={constraintsRef} className="relative flex items-center justify-center" style={{ width: 320, height: 320 }}>
