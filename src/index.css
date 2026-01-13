@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap');
 
 @layer base {
   :root {
@@ -100,8 +100,8 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans;
-    font-family: 'Roboto', sans-serif;
+    @apply bg-background text-foreground;
+    font-family: 'Be Vietnam Pro', sans-serif;
   }
 }
 
@@ -119,32 +119,87 @@
 
 /* Dice shaking animation */
 @keyframes shake {
-  0%, 100% { transform: translateX(0) rotate(0deg); }
-  10% { transform: translateX(-10px) rotate(-10deg); }
-  20% { transform: translateX(10px) rotate(10deg); }
-  30% { transform: translateX(-10px) rotate(-5deg); }
-  40% { transform: translateX(10px) rotate(5deg); }
-  50% { transform: translateX(-5px) rotate(-3deg); }
-  60% { transform: translateX(5px) rotate(3deg); }
-  70% { transform: translateX(-3px) rotate(-2deg); }
-  80% { transform: translateX(3px) rotate(2deg); }
-  90% { transform: translateX(-1px) rotate(-1deg); }
+
+  0%,
+  100% {
+    transform: translateX(0) rotate(0deg);
+  }
+
+  10% {
+    transform: translateX(-10px) rotate(-10deg);
+  }
+
+  20% {
+    transform: translateX(10px) rotate(10deg);
+  }
+
+  30% {
+    transform: translateX(-10px) rotate(-5deg);
+  }
+
+  40% {
+    transform: translateX(10px) rotate(5deg);
+  }
+
+  50% {
+    transform: translateX(-5px) rotate(-3deg);
+  }
+
+  60% {
+    transform: translateX(5px) rotate(3deg);
+  }
+
+  70% {
+    transform: translateX(-3px) rotate(-2deg);
+  }
+
+  80% {
+    transform: translateX(3px) rotate(2deg);
+  }
+
+  90% {
+    transform: translateX(-1px) rotate(-1deg);
+  }
 }
 
 @keyframes bounce-in {
-  0% { transform: scale(0.5); opacity: 0; }
-  50% { transform: scale(1.1); }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+
+  50% {
+    transform: scale(1.1);
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes pulse-gold {
-  0%, 100% { box-shadow: 0 0 0 0 hsl(42, 100%, 55%, 0.4); }
-  50% { box-shadow: 0 0 20px 10px hsl(42, 100%, 55%, 0.2); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 hsl(42, 100%, 55%, 0.4);
+  }
+
+  50% {
+    box-shadow: 0 0 20px 10px hsl(42, 100%, 55%, 0.2);
+  }
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
 }
 
 .animate-shake {
