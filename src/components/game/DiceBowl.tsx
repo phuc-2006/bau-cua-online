@@ -109,24 +109,47 @@ const DiceBowl = ({ isShaking, results, previousResults, pendingResults, onBowlR
 
   return (
     <div ref={constraintsRef} className="relative flex items-center justify-center" style={{ width: 320, height: 320 }}>
-      {/* Plate/Dish */}
+      {/* Plate/Dish - Pure white with gold cloud decorations */}
       <div
-        className="absolute w-72 h-72 md:w-80 md:h-80 rounded-full shadow-2xl"
+        className="absolute w-72 h-72 md:w-80 md:h-80 rounded-full shadow-2xl overflow-hidden"
         style={{
-          background: 'linear-gradient(145deg, #f5f5f5 0%, #e0e0e0 50%, #d0d0d0 100%)',
-          boxShadow: 'inset 0 4px 20px rgba(0,0,0,0.1), 0 10px 40px rgba(0,0,0,0.3)',
+          background: 'linear-gradient(145deg, #ffffff 0%, #f8f8f8 50%, #f0f0f0 100%)',
+          boxShadow: 'inset 0 4px 20px rgba(0,0,0,0.08), 0 10px 40px rgba(0,0,0,0.25)',
         }}
       >
         {/* Inner plate circle */}
-        <div className="absolute inset-8 rounded-full bg-gradient-to-b from-gray-100 to-gray-200" />
+        <div className="absolute inset-6 rounded-full bg-gradient-to-b from-white to-gray-50" />
 
-        {/* Plate decorative border */}
-        <div
-          className="absolute inset-2 rounded-full border-4 border-primary/20"
-          style={{
-            borderStyle: 'dashed',
-          }}
-        />
+        {/* Gold cloud decorations on plate */}
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 320 320" preserveAspectRatio="xMidYMid slice">
+          {/* Cloud pattern - top */}
+          <g fill="rgba(218,165,32,0.25)" stroke="rgba(218,165,32,0.4)" strokeWidth="1">
+            <ellipse cx="100" cy="45" rx="18" ry="12" />
+            <ellipse cx="115" cy="38" rx="14" ry="9" />
+            <ellipse cx="85" cy="42" rx="12" ry="8" />
+          </g>
+          {/* Cloud pattern - right */}
+          <g fill="rgba(218,165,32,0.2)" stroke="rgba(218,165,32,0.35)" strokeWidth="1">
+            <ellipse cx="260" cy="140" rx="16" ry="11" />
+            <ellipse cx="272" cy="133" rx="12" ry="8" />
+            <ellipse cx="250" cy="138" rx="10" ry="7" />
+          </g>
+          {/* Cloud pattern - bottom */}
+          <g fill="rgba(218,165,32,0.22)" stroke="rgba(218,165,32,0.38)" strokeWidth="1">
+            <ellipse cx="150" cy="275" rx="20" ry="13" />
+            <ellipse cx="168" cy="267" rx="15" ry="10" />
+            <ellipse cx="135" cy="272" rx="13" ry="9" />
+          </g>
+          {/* Cloud pattern - left */}
+          <g fill="rgba(218,165,32,0.18)" stroke="rgba(218,165,32,0.32)" strokeWidth="1">
+            <ellipse cx="55" cy="180" rx="14" ry="10" />
+            <ellipse cx="65" cy="173" rx="11" ry="7" />
+            <ellipse cx="48" cy="177" rx="9" ry="6" />
+          </g>
+          {/* Decorative swirl patterns */}
+          <path d="M 220 50 Q 235 35 250 50" stroke="rgba(218,165,32,0.35)" strokeWidth="1.5" fill="none" />
+          <path d="M 60 240 Q 75 225 90 240" stroke="rgba(218,165,32,0.3)" strokeWidth="1.5" fill="none" />
+        </svg>
       </div>
 
       {/* Dice Container - Triangle arrangement - pointer-events-none so bowl can be dragged */}
@@ -136,7 +159,7 @@ const DiceBowl = ({ isShaking, results, previousResults, pendingResults, onBowlR
           initial={{ scale: 0, opacity: 0 }}
           animate={{
             scale: (results && isRevealed) || (!showBowl && results) ? 1 : 0.8,
-            opacity: (results && isRevealed) || (!showBowl && results) ? 1 : (isShaking ? 0.3 : 0.6),
+            opacity: (results && isRevealed) || (!showBowl && results) ? 1 : (isShaking ? 0.5 : 0.7),
             rotate: isShaking ? [0, 15, -15, 10, -10, 0] : 0,
           }}
           transition={{
@@ -156,7 +179,7 @@ const DiceBowl = ({ isShaking, results, previousResults, pendingResults, onBowlR
             initial={{ scale: 0, opacity: 0 }}
             animate={{
               scale: (results && isRevealed) || (!showBowl && results) ? 1 : 0.8,
-              opacity: (results && isRevealed) || (!showBowl && results) ? 1 : (isShaking ? 0.3 : 0.6),
+              opacity: (results && isRevealed) || (!showBowl && results) ? 1 : (isShaking ? 0.5 : 0.7),
               rotate: isShaking ? [0, -15, 15, -10, 10, 0] : 0,
             }}
             transition={{
@@ -175,7 +198,7 @@ const DiceBowl = ({ isShaking, results, previousResults, pendingResults, onBowlR
             initial={{ scale: 0, opacity: 0 }}
             animate={{
               scale: (results && isRevealed) || (!showBowl && results) ? 1 : 0.8,
-              opacity: (results && isRevealed) || (!showBowl && results) ? 1 : (isShaking ? 0.3 : 0.6),
+              opacity: (results && isRevealed) || (!showBowl && results) ? 1 : (isShaking ? 0.5 : 0.7),
               rotate: isShaking ? [0, 10, -10, 15, -15, 0] : 0,
             }}
             transition={{

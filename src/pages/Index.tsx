@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { LogIn, UserPlus, Wallet, Lock, Loader2, Users } from "lucide-react";
+import { LogIn, UserPlus, Wallet, Lock, Loader2, Users, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatMoney } from "@/lib/game";
 import ProfileMenu from "@/components/game/ProfileMenu";
@@ -163,6 +163,12 @@ const Index = () => {
         <div className="flex items-center gap-3">
           {user ? (
             <>
+              <Link to="/deposit">
+                <Button variant="game" size="sm" className="flex items-center gap-1">
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden md:inline">Nạp</span>
+                </Button>
+              </Link>
               <div className="flex items-center gap-2 bg-primary text-primary-foreground px-3 py-2 rounded-full font-bold shadow-lg text-sm md:text-base">
                 <Wallet className="w-4 h-4 md:w-5 md:h-5" />
                 {formatMoney(profile?.balance || 0)}
