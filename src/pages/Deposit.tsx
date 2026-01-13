@@ -101,23 +101,17 @@ const Deposit = () => {
     setSubmitting(true);
 
     try {
-      const { error } = await supabase
-        .from("deposit_requests")
-        .insert({
-          user_id: user.id,
-          amount: amountNum,
-        });
+      const amountNum = parseInt(amount);
 
-      if (error) throw error;
-
-      // If admin, auto-approve and add money directly
       if (isAdmin) {
-        // Add money to balance directly
+        // Admin: Add money to balance directly, no request created
         const newBalance = (profile?.balance || 0) + amountNum;
-        await supabase
+        const { error } = await supabase
           .from("profiles")
           .update({ balance: newBalance })
           .eq("user_id", user.id);
+
+        if (error) throw error;
 
         setProfile({ ...profile, balance: newBalance });
 
@@ -126,6 +120,16 @@ const Deposit = () => {
           description: `Đã nạp ${formatMoney(amountNum)} vào tài khoản.`,
         });
       } else {
+        // Regular user: Create deposit request
+        const { error } = await supabase
+          .from("deposit_requests")
+          .insert({
+            user_id: user.id,
+            amount: amountNum,
+          });
+
+        if (error) throw error;
+
         toast({
           title: "Gửi yêu cầu thành công!",
           description: "Yêu cầu nạp tiền của bạn đang chờ admin duyệt.",
@@ -209,11 +213,14 @@ const Deposit = () => {
         >
           <h2 className="text-xl font-bold text-card-foreground mb-4 flex items-center gap-2">
             <Send className="w-6 h-6 text-primary" />
-            Yêu cầu nạp tiền
+            {isAdmin ? "Nạp tiền ngay" : "Yêu cầu nạp tiền"}
           </h2>
 
           <p className="text-muted-foreground text-sm mb-4">
-            Gửi yêu cầu nạp tiền và chờ admin duyệt. Tiền sẽ được cộng vào tài khoản sau khi được duyệt.
+            {isAdmin
+              ? "Admin có thể tự nạp tiền ngay lập tức vào tài khoản."
+              : "Gửi yêu cầu nạp tiền và chờ admin duyệt. Tiền sẽ được cộng vào tài khoản sau khi được duyệt."
+            }
           </p>
 
           <div className="flex gap-3">
