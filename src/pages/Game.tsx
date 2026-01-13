@@ -21,7 +21,7 @@ const Game = () => {
           return;
         }
         setUser(session.user);
-        
+
         // Fetch profile and role
         setTimeout(async () => {
           const { data: profileData, error } = await supabase
@@ -65,6 +65,10 @@ const Game = () => {
   const handleBalanceChange = async (newBalance: number) => {
     if (!user || !profile) return;
 
+    // Optimistic update
+    const previousBalance = profile.balance;
+    setProfile({ ...profile, balance: newBalance });
+
     try {
       const { error } = await supabase
         .from("profiles")
@@ -72,9 +76,9 @@ const Game = () => {
         .eq("user_id", user.id);
 
       if (error) throw error;
-
-      setProfile({ ...profile, balance: newBalance });
     } catch (error: any) {
+      // Revert on error
+      setProfile({ ...profile, balance: previousBalance });
       toast({
         title: "Lỗi",
         description: "Không thể cập nhật số dư.",

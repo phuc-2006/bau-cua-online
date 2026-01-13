@@ -22,7 +22,7 @@ const AnimalCard = ({ animal, isSelected, betAmount, onClick, isWinner, winCount
       whileTap={{ scale: 0.98 }}
     >
       {animal.image ? (
-        <div className="bg-white rounded-lg p-2 mb-2 shadow-sm">
+        <div className="bg-white rounded-lg mb-2 shadow-sm overflow-hidden">
           <img
             src={animal.image}
             alt={animal.name}

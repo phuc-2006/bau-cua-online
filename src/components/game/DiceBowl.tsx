@@ -127,7 +127,7 @@ const DiceBowl = ({ isShaking, results, previousResults, pendingResults, onBowlR
             type: "spring",
             stiffness: 200
           }}
-          className="w-16 h-16 md:w-20 md:h-20 rounded-xl bg-white shadow-lg flex items-center justify-center mb-2 border-2 border-primary/30"
+          className="w-20 h-20 md:w-28 md:h-28 rounded-xl bg-white shadow-lg flex items-center justify-center mb-2 border-2 border-primary/30"
         >
           {results && (isRevealed || !showBowl) ? renderDiceFace(results[0]) : renderDiceFace(getDiceFace(0))}
         </motion.div>
@@ -148,7 +148,7 @@ const DiceBowl = ({ isShaking, results, previousResults, pendingResults, onBowlR
               type: "spring",
               stiffness: 200
             }}
-            className="w-16 h-16 md:w-20 md:h-20 rounded-xl bg-white shadow-lg flex items-center justify-center border-2 border-primary/30"
+            className="w-20 h-20 md:w-28 md:h-28 rounded-xl bg-white shadow-lg flex items-center justify-center border-2 border-primary/30"
           >
             {results && (isRevealed || !showBowl) ? renderDiceFace(results[1]) : renderDiceFace(getDiceFace(1))}
           </motion.div>
@@ -167,7 +167,7 @@ const DiceBowl = ({ isShaking, results, previousResults, pendingResults, onBowlR
               type: "spring",
               stiffness: 200
             }}
-            className="w-16 h-16 md:w-20 md:h-20 rounded-xl bg-white shadow-lg flex items-center justify-center border-2 border-primary/30"
+            className="w-20 h-20 md:w-28 md:h-28 rounded-xl bg-white shadow-lg flex items-center justify-center border-2 border-primary/30"
           >
             {results && (isRevealed || !showBowl) ? renderDiceFace(results[2]) : renderDiceFace(getDiceFace(2))}
           </motion.div>
