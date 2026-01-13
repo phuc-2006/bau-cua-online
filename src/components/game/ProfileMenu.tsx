@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  User, 
-  LogOut, 
-  Wallet, 
-  ChevronDown, 
+import {
+  User,
+  LogOut,
+  Wallet,
+  ChevronDown,
   Shield,
   Gamepad2
 } from "lucide-react";
@@ -40,11 +40,11 @@ const ProfileMenu = ({ username, balance, isAdmin, onLogout }: ProfileMenuProps)
         {isOpen && (
           <>
             {/* Backdrop */}
-            <div 
-              className="fixed inset-0 z-40" 
-              onClick={() => setIsOpen(false)} 
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setIsOpen(false)}
             />
-            
+
             {/* Dropdown */}
             <motion.div
               initial={{ opacity: 0, y: -10, scale: 0.95 }}
@@ -71,14 +71,14 @@ const ProfileMenu = ({ username, balance, isAdmin, onLogout }: ProfileMenuProps)
                 <button
                   onClick={() => {
                     setIsOpen(false);
-                    navigate("/games");
+                    navigate("/");
                   }}
                   className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-primary/10 transition-colors text-card-foreground"
                 >
                   <Gamepad2 className="w-5 h-5 text-primary" />
-                  <span>Danh sách trò chơi</span>
+                  <span>Trang chủ</span>
                 </button>
-                
+
                 <button
                   onClick={() => {
                     setIsOpen(false);

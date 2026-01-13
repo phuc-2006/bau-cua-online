@@ -59,7 +59,7 @@ const Room = () => {
 
         // If room is already playing, redirect to game
         if (roomData.status === 'playing') {
-            navigate(`/game/online/${roomId}`);
+            navigate(`/baucua/online/${roomId}`);
             return;
         }
 
@@ -165,7 +165,7 @@ const Room = () => {
 
                     // Handle room status changes (e.g., game started)
                     if (newRoomData.status === 'playing') {
-                        navigate(`/game/online/${roomId}`);
+                        navigate(`/baucua/online/${roomId}`);
                     }
 
                     // Handle host transfer
@@ -248,7 +248,7 @@ const Room = () => {
                 description: "Đang khởi động trò chơi...",
             });
 
-            navigate(`/game/online/${roomId}`);
+            navigate(`/baucua/online/${roomId}`);
         } catch (error: any) {
             toast({
                 title: "Lỗi",

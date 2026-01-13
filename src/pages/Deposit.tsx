@@ -191,7 +191,7 @@ const Deposit = () => {
       <div className="max-w-md mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
-          <Button variant="gameOutline" onClick={() => navigate("/game")}>
+          <Button variant="gameOutline" onClick={() => navigate("/baucua")}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Quay lại
           </Button>

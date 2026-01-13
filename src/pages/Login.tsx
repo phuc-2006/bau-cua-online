@@ -31,7 +31,7 @@ const Login = () => {
         title: "Đăng nhập thành công!",
         description: "Chào mừng bạn quay lại!",
       });
-      navigate("/game");
+      navigate("/baucua");
     } catch (error: any) {
       toast({
         title: "Lỗi đăng nhập",

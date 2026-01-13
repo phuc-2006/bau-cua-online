@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Trash2, Dice5, Wallet, Users } from "lucide-react";
+import { Trash2, Dice5, Wallet, Users, ArrowLeft, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AnimalCard from "./AnimalCard";
 import DiceBowl from "./DiceBowl";
@@ -192,17 +192,31 @@ const GameBoard = ({ balance, onBalanceChange, onLogout, username, isAdmin }: Ga
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="flex items-center justify-between p-4 border-b border-border">
-        <Link to="/" className="hover:opacity-80 transition-opacity">
-          <h1 className="text-xl md:text-2xl font-black text-foreground game-title">
-            🎲 Bầu Cua Tôm Cá
-          </h1>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link to="/">
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="w-4 h-4 mr-1" />
+              <span className="hidden md:inline">Trang chủ</span>
+            </Button>
+          </Link>
+          <Link to="/" className="hover:opacity-80 transition-opacity">
+            <h1 className="text-xl md:text-2xl font-black text-foreground game-title">
+              🎲 Bầu Cua
+            </h1>
+          </Link>
+        </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Link to="/rooms">
             <Button variant="gameOutline" size="sm" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
               <span className="hidden md:inline">Chơi Online</span>
+            </Button>
+          </Link>
+          <Link to="/deposit">
+            <Button variant="game" size="sm" className="flex items-center gap-1">
+              <Plus className="w-4 h-4" />
+              <span className="hidden md:inline">Nạp</span>
             </Button>
           </Link>
           <div className="flex items-center gap-2 bg-primary text-primary-foreground px-3 py-2 rounded-full font-bold shadow-lg text-sm md:text-base">
@@ -289,11 +303,13 @@ const GameBoard = ({ balance, onBalanceChange, onLogout, username, isAdmin }: Ga
             {isShaking ? "Đang lắc..." : canReveal ? "Kéo bát!" : "Lắc!"}
           </Button>
         </div>
-        {(totalBet > 0 || revealedTotalBet > 0) && (
-          <p className="text-center text-sm text-muted-foreground mt-2">
-            Tổng cược: <span className="font-bold text-foreground">{formatMoney(results !== null ? revealedTotalBet : totalBet)}</span>
-          </p>
-        )}
+        {
+          (totalBet > 0 || revealedTotalBet > 0) && (
+            <p className="text-center text-sm text-muted-foreground mt-2">
+              Tổng cược: <span className="font-bold text-foreground">{formatMoney(results !== null ? revealedTotalBet : totalBet)}</span>
+            </p>
+          )
+        }
       </div>
     </div>
   );

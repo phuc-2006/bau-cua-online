@@ -23,7 +23,7 @@ const GAMES: GameItem[] = [
     emoji: "🎲",
     description: "Trò chơi xúc xắc truyền thống với 6 linh vật may mắn",
     available: true,
-    route: "/game"
+    route: "/baucua"
   },
   {
     id: "ochemchem",

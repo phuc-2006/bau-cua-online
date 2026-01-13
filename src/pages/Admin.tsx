@@ -6,13 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { formatMoney } from "@/lib/game";
-import { 
-  ArrowLeft, 
-  Wallet, 
-  Users, 
-  Check, 
-  X, 
-  Plus, 
+import {
+  ArrowLeft,
+  Wallet,
+  Users,
+  Check,
+  X,
+  Plus,
   Loader2,
   Shield,
   Clock,
@@ -55,7 +55,7 @@ const Admin = () => {
   useEffect(() => {
     const checkAdminStatus = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         navigate("/login");
         return;
@@ -77,7 +77,7 @@ const Admin = () => {
           description: "Bạn không phải là admin.",
           variant: "destructive",
         });
-        navigate("/game");
+        navigate("/baucua");
         return;
       }
 
@@ -99,7 +99,7 @@ const Admin = () => {
 
       // Fetch pending deposit requests
       await fetchDepositRequests();
-      
+
       setLoading(false);
     };
 
@@ -195,13 +195,13 @@ const Admin = () => {
       if (error) throw error;
 
       // Update local state
-      setAllUsers(prev => prev.map(u => 
-        u.user_id === targetUser.user_id 
+      setAllUsers(prev => prev.map(u =>
+        u.user_id === targetUser.user_id
           ? { ...u, balance: u.balance + amount }
           : u
       ));
       setUserAddAmounts(prev => ({ ...prev, [targetUser.user_id]: "" }));
-      
+
       toast({
         title: "Thành công!",
         description: `Đã nạp ${formatMoney(amount)} cho ${targetUser.username}.`,
@@ -241,7 +241,7 @@ const Admin = () => {
       // Update request status
       const { error: requestError } = await supabase
         .from("deposit_requests")
-        .update({ 
+        .update({
           status: "approved",
           processed_at: new Date().toISOString(),
           processed_by: user.id
@@ -274,7 +274,7 @@ const Admin = () => {
     try {
       const { error } = await supabase
         .from("deposit_requests")
-        .update({ 
+        .update({
           status: "rejected",
           processed_at: new Date().toISOString(),
           processed_by: user.id
@@ -300,7 +300,7 @@ const Admin = () => {
     }
   };
 
-  const filteredUsers = allUsers.filter(u => 
+  const filteredUsers = allUsers.filter(u =>
     u.username.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -317,9 +317,9 @@ const Admin = () => {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <Button variant="gameOutline" onClick={() => navigate("/games")}>
+          <Button variant="gameOutline" onClick={() => navigate("/")}>
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Quay lại
+            Trang chủ
           </Button>
           <div className="flex items-center gap-2 text-foreground">
             <Shield className="w-5 h-5 text-primary" />
@@ -366,7 +366,7 @@ const Admin = () => {
             <p className="text-3xl font-black text-primary mb-4">
               {formatMoney(profile?.balance || 0)}
             </p>
-            
+
             <div className="flex gap-3">
               <Input
                 type="number"
