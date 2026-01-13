@@ -45,7 +45,8 @@ const GameBoard = ({ balance, onBalanceChange, onLogout, username, isAdmin }: Ga
   const handleAnimalClick = (animalId: AnimalType) => {
     if (isShaking || canReveal) return;
 
-    if (balance < selectedBetAmount + totalBet - bets[animalId]) {
+    // Check if user has enough balance (current balance check, not including already placed bets since they are deducted)
+    if (balance < selectedBetAmount) {
       toast({
         title: "Không đủ tiền!",
         description: "Số dư của bạn không đủ để đặt cược thêm.",
@@ -53,6 +54,9 @@ const GameBoard = ({ balance, onBalanceChange, onLogout, username, isAdmin }: Ga
       });
       return;
     }
+
+    // Deduct money immediately
+    onBalanceChange(balance - selectedBetAmount);
 
     setBets(prev => ({
       ...prev,
@@ -65,6 +69,10 @@ const GameBoard = ({ balance, onBalanceChange, onLogout, username, isAdmin }: Ga
 
   const handleClearBets = () => {
     if (isShaking || canReveal) return;
+
+    // Refund all bets
+    onBalanceChange(balance + totalBet);
+
     setBets({ nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 });
     setResults(null);
     setLastWinnings(null);
@@ -120,21 +128,29 @@ const GameBoard = ({ balance, onBalanceChange, onLogout, username, isAdmin }: Ga
     setWinCounts(counts);
 
     // Calculate winnings
-    // Rule: If you bet on an animal and it appears, you get your bet back + bet * count
-    // Example: Bet 10k on "bầu", if "bầu" appears 2 times, you get 10k + 10k*2 = 30k
+    // Rule: Since money was deducted when betting, we now return (Stake + Profit) for winning bets
+    // Example: Bet 10k on "bầu".
+    // - Place bet: Balance - 10k.
+    // - "Bầu" appears 1 time: Win 10k (stake) + 10k (profit) = 20k. New Balance = (Balance - 10k) + 20k = Balance + 10k.
+    // - "Bầu" appears 2 times: Win 10k (stake) + 20k (profit) = 30k. New Balance = (Balance - 10k) + 30k = Balance + 20k.
     let winnings = 0;
     Object.entries(bets).forEach(([animal, betAmount]) => {
       const animalType = animal as AnimalType;
       const count = counts[animalType];
       if (betAmount > 0 && count > 0) {
-        // You get your bet back plus bet * number of times the animal appears
+        // Return stake + (stake * count)
         winnings += betAmount + (betAmount * count);
       }
     });
 
-    // Calculate net change (winnings minus all bets placed)
+    // Calculate new balance
+    // Since bets were already deducted, we just add the winnings
+    const newBalance = balance + winnings;
+
+    // Calculate net change for display (Winnings - Total Bet)
+    // Example: Bet 100k, Win 150k (100k stake + 50k profit). Net = +50k.
+    // Example: Bet 100k, Lose. Winnings 0. Net = -100k.
     const netChange = winnings - totalBet;
-    const newBalance = balance + netChange;
 
     setLastWinnings(netChange);
     onBalanceChange(newBalance);

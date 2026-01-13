@@ -19,8 +19,26 @@ const DiceBowl = ({ isShaking, results, previousResults, pendingResults, onBowlR
   const x = useMotionValue(0);
   const y = useMotionValue(0);
 
-  const getAnimalEmoji = (animalId: AnimalType) => {
-    return ANIMALS.find(a => a.id === animalId)?.emoji || '❓';
+  const renderDiceFace = (animalId: AnimalType) => {
+    const animal = ANIMALS.find(a => a.id === animalId);
+    if (animal?.image) {
+      return (
+        <>
+          <img
+            src={animal.image}
+            alt={animal.name}
+            className="w-full h-full object-contain p-1 drop-shadow-sm"
+            onDragStart={(e) => e.preventDefault()}
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              e.currentTarget.nextElementSibling?.classList.remove('hidden');
+            }}
+          />
+          <span className="text-3xl md:text-4xl hidden">{animal?.emoji || '❓'}</span>
+        </>
+      );
+    }
+    return <span className="text-3xl md:text-4xl">{animal?.emoji || '❓'}</span>;
   };
 
   // Get dice faces - use pending (hidden) results if available, otherwise previous
@@ -109,9 +127,9 @@ const DiceBowl = ({ isShaking, results, previousResults, pendingResults, onBowlR
             type: "spring",
             stiffness: 200
           }}
-          className="w-16 h-16 md:w-20 md:h-20 rounded-xl bg-white shadow-lg flex items-center justify-center text-3xl md:text-4xl mb-2 border-2 border-primary/30"
+          className="w-16 h-16 md:w-20 md:h-20 rounded-xl bg-white shadow-lg flex items-center justify-center mb-2 border-2 border-primary/30"
         >
-          {results && (isRevealed || !showBowl) ? getAnimalEmoji(results[0]) : getAnimalEmoji(getDiceFace(0))}
+          {results && (isRevealed || !showBowl) ? renderDiceFace(results[0]) : renderDiceFace(getDiceFace(0))}
         </motion.div>
 
         {/* Bottom two dice */}
@@ -130,9 +148,9 @@ const DiceBowl = ({ isShaking, results, previousResults, pendingResults, onBowlR
               type: "spring",
               stiffness: 200
             }}
-            className="w-16 h-16 md:w-20 md:h-20 rounded-xl bg-white shadow-lg flex items-center justify-center text-3xl md:text-4xl border-2 border-primary/30"
+            className="w-16 h-16 md:w-20 md:h-20 rounded-xl bg-white shadow-lg flex items-center justify-center border-2 border-primary/30"
           >
-            {results && (isRevealed || !showBowl) ? getAnimalEmoji(results[1]) : getAnimalEmoji(getDiceFace(1))}
+            {results && (isRevealed || !showBowl) ? renderDiceFace(results[1]) : renderDiceFace(getDiceFace(1))}
           </motion.div>
 
           <motion.div
@@ -149,9 +167,9 @@ const DiceBowl = ({ isShaking, results, previousResults, pendingResults, onBowlR
               type: "spring",
               stiffness: 200
             }}
-            className="w-16 h-16 md:w-20 md:h-20 rounded-xl bg-white shadow-lg flex items-center justify-center text-3xl md:text-4xl border-2 border-primary/30"
+            className="w-16 h-16 md:w-20 md:h-20 rounded-xl bg-white shadow-lg flex items-center justify-center border-2 border-primary/30"
           >
-            {results && (isRevealed || !showBowl) ? getAnimalEmoji(results[2]) : getAnimalEmoji(getDiceFace(2))}
+            {results && (isRevealed || !showBowl) ? renderDiceFace(results[2]) : renderDiceFace(getDiceFace(2))}
           </motion.div>
         </div>
       </div>
