@@ -240,25 +240,24 @@ const OnlineGame = () => {
     useEffect(() => {
         if (!roomId) return;
 
-        // Small helper: update players list immediately, then reconcile by refetch
+        // Helper: remove player locally (no fetchPlayers call to prevent race condition)
         const removePlayerLocal = (userId?: string, rowId?: string) => {
             if (!userId && !rowId) return;
-            // Invalidate pending fetches to prevent race condition
             fetchIdRef.current += 1;
-            // Use OR logic: remove if matches rowId OR userId (either is enough)
             setPlayers(prev => {
                 const filtered = prev.filter(p => {
                     const matchId = rowId && p.id === rowId;
                     const matchUserId = userId && p.odlUserId === userId;
                     return !matchId && !matchUserId;
                 });
-                console.log(`[removePlayerLocal] ${prev.length} -> ${filtered.length}`);
                 return filtered;
             });
         };
 
+        // Helper: add player locally (no fetchPlayers call)
         const addPlayerLocal = async (userId?: string, rowId?: string) => {
             if (!userId || !rowId) return;
+            fetchIdRef.current += 1;
 
             // Avoid duplicates
             setPlayers(prev => {
@@ -266,7 +265,7 @@ const OnlineGame = () => {
                 return [...prev, { id: rowId, username: "Đang tải...", isHost: false, odlUserId: userId }];
             });
 
-            // Hydrate username + host flag (best-effort)
+            // Hydrate username + host flag
             const [{ data: profileData }, { data: roomData }] = await Promise.all([
                 supabase.from("profiles").select("user_id, username").eq("user_id", userId).maybeSingle(),
                 supabase.from("rooms").select("host_id").eq("id", roomId).maybeSingle(),
@@ -284,7 +283,7 @@ const OnlineGame = () => {
 
         const channel = supabase
             .channel(`online-game-${roomId}`)
-            // Listen for ALL session changes in this room (INSERT for new rounds, UPDATE for status)
+            // Listen for session changes (INSERT for new rounds, UPDATE for status)
             .on(
                 'postgres_changes',
                 {
@@ -295,10 +294,8 @@ const OnlineGame = () => {
                 },
                 (payload) => {
                     if (payload.eventType === 'INSERT') {
-                        // New round created
                         const newSession = payload.new as GameSession;
                         setSession(newSession);
-                        // Reset local state for new round
                         setBets({ nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 });
                         setWinCounts({ nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 });
                         setLastWinnings(null);
@@ -308,7 +305,7 @@ const OnlineGame = () => {
                         setIsReady(false);
                         setReadyPlayers(new Set());
                         hasRevealedRef.current = false;
-                        setBowlKey(prev => prev + 1); // Force DiceBowl remount
+                        setBowlKey(prev => prev + 1);
                         toast({
                             title: "Vòng mới!",
                             description: "Hãy đặt cược vào con vật bạn chọn.",
@@ -324,14 +321,13 @@ const OnlineGame = () => {
                             hasRevealedRef.current = false;
                         } else if (newSession.status === 'revealed' && newSession.dice_results) {
                             setIsShaking(false);
-                            // Auto reveal - set canReveal and autoRevealed
                             setCanReveal(true);
                             setAutoRevealed(true);
                         }
                     }
                 }
             )
-            // Player JOIN (filtered)
+            // Player JOIN
             .on(
                 'postgres_changes',
                 {
@@ -345,7 +341,7 @@ const OnlineGame = () => {
                     void addPlayerLocal(row?.user_id, row?.id);
                 }
             )
-            // Player LEAVE (no filter, check old.room_id)
+            // Player LEAVE (no filter, check room_id manually)
             .on(
                 'postgres_changes',
                 {
@@ -361,10 +357,10 @@ const OnlineGame = () => {
             )
             .subscribe();
 
-        // Periodic sync every 5 seconds to catch missed events
+        // Reconciliation backup every 30 seconds (only as fallback for missed events)
         const syncInterval = setInterval(() => {
             fetchPlayers();
-        }, 5000);
+        }, 30000);
 
         return () => {
             clearInterval(syncInterval);
