@@ -718,6 +718,44 @@ const OnlineGame = () => {
                 </div>
             </div>
 
+            {/* Players List Section */}
+            <div className="px-4 py-3 border-b border-border">
+                <div className="flex items-center gap-2 mb-2">
+                    <Users className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-semibold text-foreground">
+                        Người chơi ({players.length}/{room?.max_players || 6})
+                    </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    {players.map((player) => {
+                        const isCurrentPlayer = player.odlUserId === user?.id;
+                        const playerIsReady = readyPlayers.has(player.odlUserId);
+
+                        return (
+                            <div
+                                key={player.id}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm ${isCurrentPlayer
+                                        ? 'bg-primary/15 border-primary/50 text-primary'
+                                        : 'bg-muted/50 border-border text-foreground'
+                                    }`}
+                            >
+                                {player.isHost && (
+                                    <Crown className="w-3 h-3 text-yellow-500" />
+                                )}
+                                <span className="font-medium">
+                                    {player.username}
+                                    {isCurrentPlayer && ' (Bạn)'}
+                                </span>
+                                {session?.status === 'betting' && !player.isHost && (
+                                    <div className={`w-2 h-2 rounded-full ${playerIsReady ? 'bg-green-500' : 'bg-muted-foreground/30'
+                                        }`} />
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
             {/* Dice Bowl - auto reveal in online mode */}
             <div className="flex justify-center py-4 md:py-6">
                 <DiceBowl
