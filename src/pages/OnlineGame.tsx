@@ -313,14 +313,20 @@ const OnlineGame = () => {
                     table: 'rooms',
                     filter: `id=eq.${roomId}`
                 },
-                (payload) => {
+                async (payload) => {
                     const newRoom = payload.new as any;
                     console.log('[OnlineGame] Room updated:', newRoom);
 
+                    // Get current user to avoid stale closure
+                    const { data: { user: currentUser } } = await supabase.auth.getUser();
+                    const currentUserId = currentUser?.id;
+
                     // Update isHost state if host changed
-                    if (newRoom.host_id) {
+                    if (newRoom.host_id && currentUserId) {
                         setRoom(newRoom);
-                        setIsHost(newRoom.host_id === user?.id);
+                        const amIHost = newRoom.host_id === currentUserId;
+                        setIsHost(amIHost);
+                        console.log('[OnlineGame] Host transfer - amIHost:', amIHost, 'host_id:', newRoom.host_id, 'myId:', currentUserId);
 
                         // Update players isHost flag
                         setPlayers(prev => prev.map(p => ({
@@ -329,7 +335,7 @@ const OnlineGame = () => {
                         })));
 
                         // If current user became host, notify them
-                        if (newRoom.host_id === user?.id) {
+                        if (amIHost) {
                             toast({
                                 title: "👑 Bạn là Host mới!",
                                 description: "Bạn có thể tạo vòng mới và lắc xúc xắc.",
@@ -447,9 +453,40 @@ const OnlineGame = () => {
                 console.log('[OnlineGame] Subscription status:', status);
             });
 
-        // Faster polling for reliable sync (every 3 seconds during betting)
-        const syncInterval = setInterval(() => {
+        // Faster polling for reliable sync (every 3 seconds)
+        const syncInterval = setInterval(async () => {
             fetchPlayers();
+
+            // Also check if host changed (fallback for realtime)
+            const { data: roomData } = await supabase
+                .from("rooms")
+                .select("host_id")
+                .eq("id", roomId)
+                .maybeSingle();
+
+            if (roomData?.host_id) {
+                const { data: { user: currentUser } } = await supabase.auth.getUser();
+                if (currentUser?.id) {
+                    const amIHost = roomData.host_id === currentUser.id;
+                    setIsHost(prev => {
+                        if (prev !== amIHost) {
+                            console.log('[Polling] Host changed, amIHost:', amIHost);
+                            // Update players isHost flag
+                            setPlayers(prevPlayers => prevPlayers.map(p => ({
+                                ...p,
+                                isHost: p.odlUserId === roomData.host_id
+                            })));
+                            if (amIHost && !prev) {
+                                toast({
+                                    title: "👑 Bạn là Host mới!",
+                                    description: "Bạn có thể tạo vòng mới và lắc xúc xắc.",
+                                });
+                            }
+                        }
+                        return amIHost;
+                    });
+                }
+            }
         }, 3000);
 
         return () => {
