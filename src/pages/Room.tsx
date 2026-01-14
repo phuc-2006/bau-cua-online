@@ -36,7 +36,7 @@ const Room = () => {
     const [isLeaving, setIsLeaving] = useState(false);
     const navigate = useNavigate();
     const { toast } = useToast();
-    
+
     // Request sequence guard to prevent race conditions
     const fetchIdRef = useRef(0);
     // Track if user has left (to prevent duplicate leaves)
@@ -47,9 +47,9 @@ const Room = () => {
     // Idempotent leave function - safe to call multiple times
     const leaveRoom = useCallback(async (userId: string, showToast = true) => {
         if (!roomId || hasLeftRef.current) return;
-        
+
         hasLeftRef.current = true;
-        
+
         try {
             const { error } = await supabase
                 .from("room_players")
@@ -61,7 +61,7 @@ const Room = () => {
             if (error && !error.message?.includes('No rows')) {
                 console.error("Leave room error:", error);
             }
-            
+
             if (showToast) {
                 toast({
                     title: "Rời phòng",
@@ -225,7 +225,7 @@ const Room = () => {
         return () => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('beforeunload', handleBeforeUnload);
-            
+
             // Only auto-leave if we haven't explicitly left and not navigating to game
             // Skip auto-leave when transitioning to the game screen
             if (!hasLeftRef.current && !isNavigatingToGameRef.current && user?.id) {
@@ -235,7 +235,7 @@ const Room = () => {
                     .delete()
                     .eq("room_id", roomId)
                     .eq("user_id", user.id)
-                    .then(() => {});
+                    .then(() => { });
             }
         };
     }, [roomId, user]);
@@ -269,10 +269,17 @@ const Room = () => {
                 {
                     event: 'DELETE',
                     schema: 'public',
-                    table: 'room_players',
-                    filter: `room_id=eq.${roomId}`
+                    table: 'room_players'
                 },
-                () => {
+                (payload) => {
+                    const oldRow = payload.old as any;
+                    // Check if this DELETE is for our room
+                    if (oldRow?.room_id !== roomId) return;
+
+                    // Immediate local update
+                    setPlayers(prev => prev.filter(p => p.id !== oldRow?.id && p.odlUserId !== oldRow?.user_id));
+
+                    // Also refetch to ensure consistency (e.g., host transfer)
                     refetchData();
                 }
             )
@@ -393,7 +400,7 @@ const Room = () => {
         if (!roomId || !user || isLeaving) return;
 
         setIsLeaving(true);
-        
+
         try {
             await leaveRoom(user.id, true);
             navigate("/rooms");
@@ -422,9 +429,9 @@ const Room = () => {
             {/* Header */}
             <header className="flex items-center justify-between p-4 border-b border-border">
                 <div className="flex items-center gap-4">
-                    <Button 
-                        variant="ghost" 
-                        size="sm" 
+                    <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={handleLeaveRoom}
                         disabled={isLeaving}
                     >

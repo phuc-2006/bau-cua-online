@@ -67,26 +67,26 @@ const OnlineGame = () => {
     const navigate = useNavigate();
     const { toast } = useToast();
     const hasRevealedRef = useRef(false);
-    
+
     // Leave room tracking
     const hasLeftRef = useRef(false);
     const [isLeaving, setIsLeaving] = useState(false);
     const fetchIdRef = useRef(0);
 
     const totalBet = Object.values(bets).reduce((sum, bet) => sum + bet, 0);
-    
+
     // Idempotent leave function
     const leaveRoom = useCallback(async (userId: string, showToast = true) => {
         if (hasLeftRef.current || !roomId) return;
         hasLeftRef.current = true;
-        
+
         try {
             await supabase
                 .from("room_players")
                 .delete()
                 .eq("room_id", roomId)
                 .eq("user_id", userId);
-            
+
             if (showToast) {
                 toast({
                     title: "Đã rời phòng",
@@ -98,11 +98,11 @@ const OnlineGame = () => {
             hasLeftRef.current = false;
         }
     }, [roomId, toast]);
-    
+
     // Handle leave room button click
     const handleLeaveRoom = async () => {
         if (!user?.id || isLeaving) return;
-        
+
         setIsLeaving(true);
         await leaveRoom(user.id);
         navigate("/rooms");
@@ -191,7 +191,7 @@ const OnlineGame = () => {
     // Fetch players helper with sequence guard
     const fetchPlayers = async () => {
         if (!roomId) return;
-        
+
         const currentFetchId = ++fetchIdRef.current;
 
         const { data: playersData } = await supabase
@@ -343,8 +343,6 @@ const OnlineGame = () => {
                 (payload) => {
                     const row = payload.new as any;
                     void addPlayerLocal(row?.user_id, row?.id);
-                    // Reconcile to ensure host flags + ordering are correct
-                    void fetchPlayers();
                 }
             )
             // Player LEAVE (no filter, check old.room_id)
@@ -358,15 +356,18 @@ const OnlineGame = () => {
                 (payload) => {
                     const oldRow = payload.old as any;
                     if (oldRow?.room_id !== roomId) return;
-
                     removePlayerLocal(oldRow?.user_id, oldRow?.id);
-                    // Reconcile in case host transferred
-                    void fetchPlayers();
                 }
             )
             .subscribe();
 
+        // Periodic sync every 5 seconds to catch missed events
+        const syncInterval = setInterval(() => {
+            fetchPlayers();
+        }, 5000);
+
         return () => {
+            clearInterval(syncInterval);
             supabase.removeChannel(channel);
         };
     }, [roomId, toast]);
@@ -612,7 +613,7 @@ const OnlineGame = () => {
         await supabase.auth.signOut();
         navigate("/");
     };
-    
+
     // Auto-leave on unmount
     useEffect(() => {
         return () => {
@@ -648,9 +649,9 @@ const OnlineGame = () => {
             {/* Header */}
             <header className="flex items-center justify-between p-4 border-b border-border">
                 <div className="flex items-center gap-4">
-                    <Button 
-                        variant="ghost" 
-                        size="sm" 
+                    <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={handleLeaveRoom}
                         disabled={isLeaving}
                     >
@@ -735,8 +736,8 @@ const OnlineGame = () => {
                             <div
                                 key={player.id}
                                 className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm ${isCurrentPlayer
-                                        ? 'bg-primary/15 border-primary/50 text-primary'
-                                        : 'bg-muted/50 border-border text-foreground'
+                                    ? 'bg-primary/15 border-primary/50 text-primary'
+                                    : 'bg-muted/50 border-border text-foreground'
                                     }`}
                             >
                                 {player.isHost && (
