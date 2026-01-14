@@ -182,13 +182,13 @@ const Room = () => {
         fetchData();
     }, [navigate, roomId, fetchRoomData]);
 
-    // Polling fallback - refetch players every 5 seconds (reduced frequency)
+    // Reconciliation backup - refetch every 30 seconds (only as fallback)
     useEffect(() => {
         if (!roomId || !user || loading) return;
 
         const interval = setInterval(() => {
             fetchRoomData(user.id);
-        }, 5000);
+        }, 30000);
 
         return () => clearInterval(interval);
     }, [roomId, user, loading, fetchRoomData]);
@@ -240,18 +240,60 @@ const Room = () => {
         };
     }, [roomId, user]);
 
-    // Realtime subscription for players and room updates
+    // Realtime subscription for players, room updates, and game_sessions
     useEffect(() => {
         if (!roomId || !user) return;
 
-        // Function to refetch all room data
+        // Invalidate pending fetches and refetch
         const refetchData = () => {
+            fetchIdRef.current += 1;
             fetchRoomData(user.id);
+        };
+
+        // Helper: add player locally
+        const addPlayerLocal = async (userId?: string, rowId?: string) => {
+            if (!userId || !rowId) return;
+            fetchIdRef.current += 1;
+
+            // Check if already exists
+            setPlayers(prev => {
+                if (prev.some(p => p.id === rowId || p.odlUserId === userId)) return prev;
+                return [...prev, { id: rowId, username: "Đang tải...", isHost: false, odlUserId: userId }];
+            });
+
+            // Hydrate username + host flag
+            const [{ data: profileData }, { data: roomData }] = await Promise.all([
+                supabase.from("profiles").select("user_id, username").eq("user_id", userId).maybeSingle(),
+                supabase.from("rooms").select("host_id").eq("id", roomId).maybeSingle(),
+            ]);
+
+            setPlayers(prev => prev.map(p => {
+                if (p.id !== rowId && p.odlUserId !== userId) return p;
+                return {
+                    ...p,
+                    username: profileData?.username || p.username || "Người chơi ẩn danh",
+                    isHost: userId === roomData?.host_id,
+                };
+            }));
+        };
+
+        // Helper: remove player locally (no refetch needed)
+        const removePlayerLocal = (userId?: string, rowId?: string) => {
+            if (!userId && !rowId) return;
+            fetchIdRef.current += 1;
+            setPlayers(prev => {
+                const filtered = prev.filter(p => {
+                    const matchId = rowId && p.id === rowId;
+                    const matchUserId = userId && p.odlUserId === userId;
+                    return !matchId && !matchUserId;
+                });
+                return filtered;
+            });
         };
 
         const channel = supabase
             .channel(`room-realtime-${roomId}`)
-            // Listen for ALL changes to room_players in this room
+            // Listen for player JOIN
             .on(
                 'postgres_changes',
                 {
@@ -260,10 +302,12 @@ const Room = () => {
                     table: 'room_players',
                     filter: `room_id=eq.${roomId}`
                 },
-                () => {
-                    refetchData();
+                (payload) => {
+                    const row = payload.new as any;
+                    void addPlayerLocal(row?.user_id, row?.id);
                 }
             )
+            // Listen for player LEAVE (no filter, check room_id manually)
             .on(
                 'postgres_changes',
                 {
@@ -273,16 +317,26 @@ const Room = () => {
                 },
                 (payload) => {
                     const oldRow = payload.old as any;
-                    // Check if this DELETE is for our room
                     if (oldRow?.room_id !== roomId) return;
-
-                    // Immediate local update
-                    setPlayers(prev => prev.filter(p => p.id !== oldRow?.id && p.odlUserId !== oldRow?.user_id));
-
-                    // Also refetch to ensure consistency (e.g., host transfer)
-                    refetchData();
+                    removePlayerLocal(oldRow?.user_id, oldRow?.id);
                 }
             )
+            // Listen for game_sessions INSERT (backup for game start)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'game_sessions',
+                    filter: `room_id=eq.${roomId}`
+                },
+                () => {
+                    // Game session created - redirect to game
+                    isNavigatingToGameRef.current = true;
+                    navigate(`/baucua/online/${roomId}`);
+                }
+            )
+            // Listen for room UPDATE
             .on(
                 'postgres_changes',
                 {
@@ -301,13 +355,16 @@ const Room = () => {
                         return;
                     }
 
-                    // Handle host transfer - refetch to update player list with correct isHost
+                    // Handle host transfer
                     if (newRoomData.host_id) {
                         setRoom(prev => prev ? { ...prev, host_id: newRoomData.host_id } : null);
                         setIsHost(newRoomData.host_id === user.id);
 
-                        // Refetch players to update isHost flags
-                        refetchData();
+                        // Update isHost flags for all players locally
+                        setPlayers(prev => prev.map(p => ({
+                            ...p,
+                            isHost: p.odlUserId === newRoomData.host_id
+                        })));
 
                         if (newRoomData.host_id === user.id) {
                             toast({
@@ -318,6 +375,7 @@ const Room = () => {
                     }
                 }
             )
+            // Listen for room DELETE
             .on(
                 'postgres_changes',
                 {
@@ -332,7 +390,7 @@ const Room = () => {
                         description: "Phòng đã bị xóa.",
                         variant: "destructive",
                     });
-                    hasLeftRef.current = true; // Prevent auto-leave on unmount
+                    hasLeftRef.current = true;
                     navigate("/rooms");
                 }
             )
