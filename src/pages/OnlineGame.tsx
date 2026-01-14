@@ -111,13 +111,14 @@ const OnlineGame = () => {
 
     // Count non-host players
     const nonHostPlayers = players.filter(p => !p.isHost);
-    const allPlayersReady = nonHostPlayers.length === 0 ||
-        nonHostPlayers.every(p => readyPlayers.has(p.odlUserId));
+    // Use players array directly for ready check (more reliable than separate Set)
+    const readyPlayerCount = nonHostPlayers.filter(p => p.isReady).length;
+    const allPlayersReady = nonHostPlayers.length === 0 || readyPlayerCount === nonHostPlayers.length;
 
     // Debug log
     console.log('[OnlineGame] Ready check:', {
-        nonHostPlayers: nonHostPlayers.map(p => ({ username: p.username, odlUserId: p.odlUserId })),
-        readyPlayers: [...readyPlayers],
+        nonHostPlayers: nonHostPlayers.map(p => ({ username: p.username, odlUserId: p.odlUserId, isReady: p.isReady })),
+        readyPlayerCount,
         allPlayersReady
     });
 
@@ -905,7 +906,7 @@ const OnlineGame = () => {
                                 >
                                     <Dice5 className="w-5 h-5 mr-2" />
                                     {nonHostPlayers.length > 0 && !allPlayersReady
-                                        ? `Chờ sẵn sàng (${readyPlayers.size}/${nonHostPlayers.length})`
+                                        ? `Chờ sẵn sàng (${readyPlayerCount}/${nonHostPlayers.length})`
                                         : "Lắc!"}
                                 </Button>
                             )}
