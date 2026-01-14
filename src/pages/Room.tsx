@@ -12,7 +12,8 @@ import {
     Play,
     Users,
     Crown,
-    LogOut
+    LogOut,
+    RefreshCw
 } from "lucide-react";
 import { formatMoney } from "@/lib/game";
 import ProfileMenu from "@/components/game/ProfileMenu";
@@ -34,6 +35,7 @@ const Room = () => {
     const [isHost, setIsHost] = useState(false);
     const [players, setPlayers] = useState<Player[]>([]);
     const [isLeaving, setIsLeaving] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const navigate = useNavigate();
     const { toast } = useToast();
 
@@ -559,11 +561,28 @@ const Room = () => {
                     transition={{ delay: 0.1 }}
                     className="bg-card rounded-2xl p-6 shadow-xl border-2 border-border mb-6"
                 >
-                    <div className="flex items-center gap-2 mb-4">
-                        <Users className="w-5 h-5 text-muted-foreground" />
-                        <h3 className="text-lg font-bold text-card-foreground">
-                            Người chơi ({players.length}/{room?.max_players || 6})
-                        </h3>
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                            <Users className="w-5 h-5 text-muted-foreground" />
+                            <h3 className="text-lg font-bold text-card-foreground">
+                                Người chơi ({players.length}/{room?.max_players || 6})
+                            </h3>
+                        </div>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={async () => {
+                                if (!user || isRefreshing) return;
+                                setIsRefreshing(true);
+                                console.log('[Room] Manual refresh triggered');
+                                await fetchRoomData(user.id);
+                                setIsRefreshing(false);
+                            }}
+                            disabled={isRefreshing}
+                            className="text-muted-foreground hover:text-foreground"
+                        >
+                            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                        </Button>
                     </div>
 
                     <div className="space-y-3">
