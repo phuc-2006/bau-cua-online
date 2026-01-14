@@ -114,6 +114,13 @@ const OnlineGame = () => {
     const allPlayersReady = nonHostPlayers.length === 0 ||
         nonHostPlayers.every(p => readyPlayers.has(p.odlUserId));
 
+    // Debug log
+    console.log('[OnlineGame] Ready check:', {
+        nonHostPlayers: nonHostPlayers.map(p => ({ username: p.username, odlUserId: p.odlUserId })),
+        readyPlayers: [...readyPlayers],
+        allPlayersReady
+    });
+
     // Fetch initial data
     useEffect(() => {
         const fetchData = async () => {
@@ -375,7 +382,10 @@ const OnlineGame = () => {
                 },
                 (payload) => {
                     const row = payload.new as any;
-                    console.log('[OnlineGame] Received ready status update:', row);
+                    console.log('[OnlineGame] Received UPDATE event:', payload);
+                    console.log('[OnlineGame] Row data:', row);
+                    console.log('[OnlineGame] is_ready:', row.is_ready, 'user_id:', row.user_id);
+
                     setReadyPlayers(prev => {
                         const newSet = new Set(prev);
                         if (row.is_ready) {
@@ -383,6 +393,7 @@ const OnlineGame = () => {
                         } else {
                             newSet.delete(row.user_id);
                         }
+                        console.log('[OnlineGame] Updated readyPlayers:', [...newSet]);
                         return newSet;
                     });
                     // Also update local player object with ready status and total bet
@@ -393,12 +404,14 @@ const OnlineGame = () => {
                     ));
                 }
             )
-            .subscribe();
+            .subscribe((status) => {
+                console.log('[OnlineGame] Subscription status:', status);
+            });
 
-        // Reconciliation backup every 30 seconds (only as fallback for missed events)
+        // Faster polling for reliable sync (every 3 seconds during betting)
         const syncInterval = setInterval(() => {
             fetchPlayers();
-        }, 30000);
+        }, 3000);
 
         return () => {
             clearInterval(syncInterval);
