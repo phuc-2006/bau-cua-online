@@ -182,13 +182,14 @@ const Room = () => {
         fetchData();
     }, [navigate, roomId, fetchRoomData]);
 
-    // Reconciliation backup - refetch every 30 seconds (only as fallback)
+    // Polling fallback - refetch every 2 seconds for reliable sync
     useEffect(() => {
         if (!roomId || !user || loading) return;
 
         const interval = setInterval(() => {
+            console.log('[Room] Polling refetch...');
             fetchRoomData(user.id);
-        }, 30000);
+        }, 2000);
 
         return () => clearInterval(interval);
     }, [roomId, user, loading, fetchRoomData]);
@@ -303,6 +304,7 @@ const Room = () => {
                     filter: `room_id=eq.${roomId}`
                 },
                 (payload) => {
+                    console.log('[Room] Realtime INSERT received:', payload);
                     const row = payload.new as any;
                     void addPlayerLocal(row?.user_id, row?.id);
                 }
@@ -394,9 +396,12 @@ const Room = () => {
                     navigate("/rooms");
                 }
             )
-            .subscribe();
+            .subscribe((status) => {
+                console.log('[Room] Realtime subscription status:', status);
+            });
 
         return () => {
+            console.log('[Room] Removing realtime channel');
             supabase.removeChannel(channel);
         };
     }, [roomId, user, navigate, toast, fetchRoomData]);
