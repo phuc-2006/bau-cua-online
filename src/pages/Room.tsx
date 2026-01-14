@@ -75,11 +75,11 @@ const Room = () => {
         }
     }, [roomId, toast]);
 
-    // Fetch room data and players with sequence guard
+    // Fetch room data and players - simplified without guards that cause race conditions
     const fetchRoomData = useCallback(async (userId: string) => {
         if (!roomId) return;
 
-        const currentFetchId = ++fetchIdRef.current;
+        console.log('[Room] Fetching room data...');
 
         // Fetch room info
         const { data: roomData, error: roomError } = await supabase
@@ -87,9 +87,6 @@ const Room = () => {
             .select("*")
             .eq("id", roomId)
             .maybeSingle();
-
-        // Check if this is still the latest request
-        if (currentFetchId !== fetchIdRef.current) return;
 
         if (roomError || !roomData) {
             toast({
@@ -118,19 +115,15 @@ const Room = () => {
             .select("id, user_id")
             .eq("room_id", roomId);
 
-        // Check again if this is still the latest request
-        if (currentFetchId !== fetchIdRef.current) return;
-
         if (!playersError && playersData) {
+            console.log('[Room] Players fetched:', playersData.length);
+
             // Fetch profiles for all players
             const userIds = playersData.map(p => p.user_id);
             const { data: profilesData } = await supabase
                 .from("profiles")
                 .select("user_id, username")
                 .in("user_id", userIds);
-
-            // Final check before updating state
-            if (currentFetchId !== fetchIdRef.current) return;
 
             const profilesMap = new Map(
                 (profilesData || []).map(p => [p.user_id, p.username])
@@ -248,16 +241,16 @@ const Room = () => {
     useEffect(() => {
         if (!roomId || !user) return;
 
-        // Invalidate pending fetches and refetch
+        // Simple refetch
         const refetchData = () => {
-            fetchIdRef.current += 1;
+            console.log('[Room] Realtime triggered refetch');
             fetchRoomData(user.id);
         };
 
         // Helper: add player locally
         const addPlayerLocal = async (userId?: string, rowId?: string) => {
             if (!userId || !rowId) return;
-            fetchIdRef.current += 1;
+            console.log('[Room] Adding player locally:', userId);
 
             // Check if already exists
             setPlayers(prev => {
@@ -284,7 +277,7 @@ const Room = () => {
         // Helper: remove player locally (no refetch needed)
         const removePlayerLocal = (userId?: string, rowId?: string) => {
             if (!userId && !rowId) return;
-            fetchIdRef.current += 1;
+            console.log('[Room] Removing player locally:', userId);
             setPlayers(prev => {
                 const filtered = prev.filter(p => {
                     const matchId = rowId && p.id === rowId;
