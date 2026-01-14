@@ -13,7 +13,8 @@ import {
     Users,
     Crown,
     LogOut,
-    RefreshCw
+    RefreshCw,
+    Check
 } from "lucide-react";
 import { formatMoney } from "@/lib/game";
 import ProfileMenu from "@/components/game/ProfileMenu";
@@ -23,6 +24,7 @@ interface Player {
     username: string;
     isHost: boolean;
     odlUserId: string;
+    isReady?: boolean;
 }
 
 const Room = () => {
@@ -36,6 +38,7 @@ const Room = () => {
     const [players, setPlayers] = useState<Player[]>([]);
     const [isLeaving, setIsLeaving] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isReady, setIsReady] = useState(false);
     const navigate = useNavigate();
     const { toast } = useToast();
 
@@ -112,7 +115,7 @@ const Room = () => {
         // Fetch players from room_players
         const { data: playersData, error: playersError } = await supabase
             .from("room_players")
-            .select("id, user_id")
+            .select("id, user_id, is_ready")
             .eq("room_id", roomId);
 
         if (!playersError && playersData) {
@@ -133,9 +136,16 @@ const Room = () => {
                 id: p.id,
                 username: profilesMap.get(p.user_id) || "Người chơi ẩn danh",
                 isHost: p.user_id === roomData.host_id,
-                odlUserId: p.user_id
+                odlUserId: p.user_id,
+                isReady: p.is_ready || false
             }));
             setPlayers(formattedPlayers);
+
+            // Update local isReady state from database
+            const myPlayer = playersData.find((p: any) => p.user_id === userId);
+            if (myPlayer) {
+                setIsReady(myPlayer.is_ready || false);
+            }
         } else if (playersError) {
             console.error("Error fetching players:", playersError);
         }
@@ -481,6 +491,40 @@ const Room = () => {
         }
     };
 
+    // Player ready toggle
+    const handleToggleReady = async () => {
+        if (isHost || !user || !roomId) return;
+
+        const newIsReady = !isReady;
+        setIsReady(newIsReady); // Optimistic update
+
+        const { error } = await supabase
+            .from("room_players")
+            .update({ is_ready: newIsReady })
+            .eq("room_id", roomId)
+            .eq("user_id", user.id);
+
+        if (error) {
+            setIsReady(!newIsReady); // Revert on error
+            toast({
+                title: "Lỗi",
+                description: "Không thể cập nhật trạng thái sẵn sàng.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        toast({
+            title: newIsReady ? "✅ Sẵn sàng!" : "⏸️ Hủy sẵn sàng",
+            description: newIsReady ? "Bạn đã sẵn sàng." : "Bạn đã hủy trạng thái sẵn sàng.",
+        });
+    };
+
+    // Computed ready status
+    const nonHostPlayers = players.filter(p => !p.isHost);
+    const readyPlayerCount = nonHostPlayers.filter(p => p.isReady).length;
+    const allPlayersReady = nonHostPlayers.length === 0 || readyPlayerCount === nonHostPlayers.length;
+
     if (loading) {
         return (
             <div className="min-h-screen bg-background flex items-center justify-center">
@@ -599,12 +643,20 @@ const Room = () => {
                                         {player.username}
                                     </span>
                                 </div>
-                                {player.isHost && (
-                                    <div className="flex items-center gap-1 bg-primary/20 px-2 py-1 rounded-full text-xs text-primary font-medium">
-                                        <Crown className="w-3 h-3" />
-                                        Chủ phòng
-                                    </div>
-                                )}
+                                <div className="flex items-center gap-2">
+                                    {!player.isHost && player.isReady && (
+                                        <div className="flex items-center gap-1 bg-green-500/20 px-2 py-1 rounded-full text-xs text-green-500 font-medium">
+                                            <Check className="w-3 h-3" />
+                                            Sẵn sàng
+                                        </div>
+                                    )}
+                                    {player.isHost && (
+                                        <div className="flex items-center gap-1 bg-primary/20 px-2 py-1 rounded-full text-xs text-primary font-medium">
+                                            <Crown className="w-3 h-3" />
+                                            Chủ phòng
+                                        </div>
+                                    )}
+                                </div>
                             </motion.div>
                         ))}
 
@@ -634,17 +686,23 @@ const Room = () => {
                             size="lg"
                             className="flex-1"
                             onClick={handleStartGame}
-                            disabled={players.length < 1}
+                            disabled={nonHostPlayers.length > 0 && !allPlayersReady}
                         >
                             <Play className="w-5 h-5 mr-2" />
-                            Bắt đầu game
+                            {nonHostPlayers.length > 0 && !allPlayersReady
+                                ? `Chờ sẵn sàng (${readyPlayerCount}/${nonHostPlayers.length})`
+                                : "Bắt đầu game"}
                         </Button>
                     ) : (
-                        <div className="flex-1 bg-muted rounded-xl p-4 text-center">
-                            <p className="text-muted-foreground">
-                                Đang chờ chủ phòng bắt đầu...
-                            </p>
-                        </div>
+                        <Button
+                            variant={isReady ? "game" : "gameOutline"}
+                            size="lg"
+                            className="flex-1"
+                            onClick={handleToggleReady}
+                        >
+                            <Check className={`w-5 h-5 mr-2 ${isReady ? 'text-white' : ''}`} />
+                            {isReady ? "Đã sẵn sàng" : "Sẵn sàng"}
+                        </Button>
                     )}
 
                     <Button
