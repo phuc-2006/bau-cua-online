@@ -202,10 +202,12 @@ const OnlineGame = () => {
 
         const currentFetchId = ++fetchIdRef.current;
 
-        const { data: playersData } = await supabase
+        const { data: playersData, error: playersError } = await supabase
             .from("room_players")
             .select("id, user_id, is_ready, total_bet")
             .eq("room_id", roomId);
+
+        console.log('[fetchPlayers] Raw data:', playersData, 'Error:', playersError);
 
         // Abort if newer fetch started
         if (currentFetchId !== fetchIdRef.current) return;
@@ -236,8 +238,10 @@ const OnlineGame = () => {
             // Build ready players set from database
             const newReadyPlayers = new Set<string>();
             playersData.forEach((p: any) => {
+                console.log('[fetchPlayers] Player:', p.user_id, 'is_ready:', p.is_ready);
                 if (p.is_ready) newReadyPlayers.add(p.user_id);
             });
+            console.log('[fetchPlayers] Setting readyPlayers:', [...newReadyPlayers]);
             setReadyPlayers(newReadyPlayers);
 
             const formattedPlayers = playersData.map((p: any) => ({
