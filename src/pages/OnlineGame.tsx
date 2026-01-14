@@ -304,6 +304,40 @@ const OnlineGame = () => {
 
         const channel = supabase
             .channel(`online-game-${roomId}`)
+            // Listen for room changes (host transfer)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'rooms',
+                    filter: `id=eq.${roomId}`
+                },
+                (payload) => {
+                    const newRoom = payload.new as any;
+                    console.log('[OnlineGame] Room updated:', newRoom);
+
+                    // Update isHost state if host changed
+                    if (newRoom.host_id) {
+                        setRoom(newRoom);
+                        setIsHost(newRoom.host_id === user?.id);
+
+                        // Update players isHost flag
+                        setPlayers(prev => prev.map(p => ({
+                            ...p,
+                            isHost: p.odlUserId === newRoom.host_id
+                        })));
+
+                        // If current user became host, notify them
+                        if (newRoom.host_id === user?.id) {
+                            toast({
+                                title: "👑 Bạn là Host mới!",
+                                description: "Bạn có thể tạo vòng mới và lắc xúc xắc.",
+                            });
+                        }
+                    }
+                }
+            )
             // Listen for session changes (INSERT for new rounds, UPDATE for status)
             .on(
                 'postgres_changes',
