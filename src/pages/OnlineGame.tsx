@@ -72,7 +72,6 @@ const OnlineGame = () => {
     const hasLeftRef = useRef(false);
     const [isLeaving, setIsLeaving] = useState(false);
     const fetchIdRef = useRef(0);
-    const readyChannelRef = useRef<any>(null);
 
     const totalBet = Object.values(bets).reduce((sum, bet) => sum + bet, 0);
 
@@ -197,7 +196,7 @@ const OnlineGame = () => {
 
         const { data: playersData } = await supabase
             .from("room_players")
-            .select("id, user_id")
+            .select("id, user_id, is_ready")
             .eq("room_id", roomId);
 
         // Abort if newer fetch started
@@ -226,12 +225,19 @@ const OnlineGame = () => {
             // Abort if newer fetch started
             if (currentFetchId !== fetchIdRef.current) return;
 
+            // Build ready players set from database
+            const newReadyPlayers = new Set<string>();
+            playersData.forEach((p: any) => {
+                if (p.is_ready) newReadyPlayers.add(p.user_id);
+            });
+            setReadyPlayers(newReadyPlayers);
+
             const formattedPlayers = playersData.map((p: any) => ({
                 id: p.id,
                 username: profilesMap.get(p.user_id) || "Người chơi ẩn danh",
                 isHost: p.user_id === roomData?.host_id,
                 odlUserId: p.user_id,
-                isReady: readyPlayers.has(p.user_id)
+                isReady: p.is_ready || false
             }));
             setPlayers(formattedPlayers);
         }
@@ -356,6 +362,35 @@ const OnlineGame = () => {
                     removePlayerLocal(oldRow?.user_id, oldRow?.id);
                 }
             )
+            // Ready status UPDATE (is_ready changed)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'UPDATE',
+                    schema: 'public',
+                    table: 'room_players',
+                    filter: `room_id=eq.${roomId}`
+                },
+                (payload) => {
+                    const row = payload.new as any;
+                    console.log('[OnlineGame] Received ready status update:', row);
+                    setReadyPlayers(prev => {
+                        const newSet = new Set(prev);
+                        if (row.is_ready) {
+                            newSet.add(row.user_id);
+                        } else {
+                            newSet.delete(row.user_id);
+                        }
+                        return newSet;
+                    });
+                    // Also update local player object
+                    setPlayers(prevPlayers => prevPlayers.map(p =>
+                        p.odlUserId === row.user_id
+                            ? { ...p, isReady: row.is_ready || false }
+                            : p
+                    ));
+                }
+            )
             .subscribe();
 
         // Reconciliation backup every 30 seconds (only as fallback for missed events)
@@ -468,69 +503,40 @@ const OnlineGame = () => {
         setBets({ nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 });
     };
 
-    // Player ready toggle
-    const handleToggleReady = () => {
-        if (isHost || session?.status !== 'betting' || !user) return;
+    // Player ready toggle - saves to database for reliable sync
+    const handleToggleReady = async () => {
+        if (isHost || session?.status !== 'betting' || !user || !roomId) return;
 
         const newIsReady = !isReady;
+
+        // Optimistic update
         setIsReady(newIsReady);
 
-        // Update ready players set
-        const newReadyPlayers = new Set(readyPlayers);
-        if (newIsReady) {
-            newReadyPlayers.add(user.id);
-        } else {
-            newReadyPlayers.delete(user.id);
-        }
-        setReadyPlayers(newReadyPlayers);
+        // Update in database (will trigger realtime UPDATE for all clients)
+        const { error } = await supabase
+            .from("room_players")
+            .update({ is_ready: newIsReady })
+            .eq("room_id", roomId)
+            .eq("user_id", user.id);
 
-        // Broadcast ready status via the subscribed channel
-        console.log('[OnlineGame] Broadcasting ready status:', { userId: user.id, isReady: newIsReady });
-        if (readyChannelRef.current) {
-            readyChannelRef.current.send({
-                type: 'broadcast',
-                event: 'ready_status',
-                payload: { userId: user.id, isReady: newIsReady }
+        if (error) {
+            // Revert optimistic update on error
+            setIsReady(!newIsReady);
+            toast({
+                title: "Lỗi",
+                description: "Không thể cập nhật trạng thái sẵn sàng.",
+                variant: "destructive",
             });
+            return;
         }
+
+        console.log('[OnlineGame] Updated ready status in database:', { userId: user.id, isReady: newIsReady });
 
         toast({
             title: newIsReady ? "✅ Sẵn sàng!" : "⏸️ Hủy sẵn sàng",
             description: newIsReady ? "Bạn đã sẵn sàng để lắc." : "Bạn đã hủy trạng thái sẵn sàng.",
         });
     };
-
-    // Listen for ready status broadcasts
-    useEffect(() => {
-        if (!roomId) return;
-
-        const channel = supabase
-            .channel(`ready-${roomId}`)
-            .on('broadcast', { event: 'ready_status' }, (payload) => {
-                console.log('[OnlineGame] Received ready broadcast:', payload);
-                const { userId, isReady: playerReady } = payload.payload;
-                setReadyPlayers(prev => {
-                    const newSet = new Set(prev);
-                    if (playerReady) {
-                        newSet.add(userId);
-                    } else {
-                        newSet.delete(userId);
-                    }
-                    return newSet;
-                });
-            })
-            .subscribe((status) => {
-                console.log('[OnlineGame] Ready channel subscription status:', status);
-            });
-
-        // Store channel in ref for sending
-        readyChannelRef.current = channel;
-
-        return () => {
-            readyChannelRef.current = null;
-            supabase.removeChannel(channel);
-        };
-    }, [roomId]);
 
     // Host shake dice
     const handleShake = async () => {
@@ -587,7 +593,13 @@ const OnlineGame = () => {
         if (!isHost || !roomId) return;
 
         try {
-            // Reset ready players
+            // Reset ready players in database
+            await supabase
+                .from("room_players")
+                .update({ is_ready: false })
+                .eq("room_id", roomId);
+
+            // Reset local state
             setReadyPlayers(new Set());
             setIsReady(false);
 
