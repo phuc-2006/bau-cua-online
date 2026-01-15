@@ -446,6 +446,12 @@ const Room = () => {
 
             if (roomError) throw roomError;
 
+            // Reset ready status and total_bet for all players
+            await supabase
+                .from("room_players")
+                .update({ is_ready: false, total_bet: 0 })
+                .eq("room_id", roomId);
+
             // Create a new game session
             const { error: sessionError } = await supabase
                 .from("game_sessions")
