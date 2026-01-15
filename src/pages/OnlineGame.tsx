@@ -866,9 +866,14 @@ const OnlineGame = () => {
         );
     }
 
-    // Animal emoji mapping for bet display
-    const animalEmoji: Record<AnimalType, string> = {
-        nai: '🦌', bau: '🍐', ga: '🐓', ca: '🐟', cua: '🦀', tom: '🦐'
+    // Animal image mapping for bet display (using same images as betting cards)
+    const animalImages: Record<AnimalType, string> = {
+        nai: '/images/animals/nai.png',
+        bau: '/images/animals/bau.png',
+        ga: '/images/animals/ga.png',
+        ca: '/images/animals/ca.png',
+        cua: '/images/animals/cua.png',
+        tom: '/images/animals/tom.png'
     };
     const animalName: Record<AnimalType, string> = {
         nai: 'Nai', bau: 'Bầu', ga: 'Gà', ca: 'Cá', cua: 'Cua', tom: 'Tôm'
@@ -956,7 +961,14 @@ const OnlineGame = () => {
                                                 .filter(([_, amount]) => (amount as number) > 0)
                                                 .map(([animal, amount]) => (
                                                     <div key={animal} className="flex items-center justify-between bg-muted/50 rounded px-2 py-1 text-xs">
-                                                        <span>{animalEmoji[animal as AnimalType]} {animalName[animal as AnimalType]}</span>
+                                                        <div className="flex items-center gap-1">
+                                                            <img
+                                                                src={animalImages[animal as AnimalType]}
+                                                                alt={animalName[animal as AnimalType]}
+                                                                className="w-4 h-4 object-contain"
+                                                            />
+                                                            <span>{animalName[animal as AnimalType]}</span>
+                                                        </div>
                                                         <span className="font-medium text-orange-500">{formatMoney(amount as number)}</span>
                                                     </div>
                                                 ))
