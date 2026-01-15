@@ -22,7 +22,15 @@ const GAMES: GameItem[] = [
     emoji: "🎲",
     description: "Trò chơi xúc xắc truyền thống với 6 linh vật may mắn",
     available: true,
-    route: "/game"
+    route: "/baucua"
+  },
+  {
+    id: "lixi",
+    name: "Lì Xì May Mắn",
+    emoji: "🧧",
+    description: "Mở lì xì nhận lộc đầu năm - Quay số hoặc lật bao",
+    available: true,
+    route: "/lixi"
   },
   {
     id: "ochemchem",
@@ -76,7 +84,7 @@ const Games = () => {
   useEffect(() => {
     const fetchData = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         navigate("/login");
         return;
@@ -130,13 +138,13 @@ const Games = () => {
         <h1 className="text-2xl font-black text-foreground game-title">
           🎮 Trò Chơi Dân Gian
         </h1>
-        
+
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-full font-bold shadow-lg">
             <Wallet className="w-5 h-5" />
             {formatMoney(profile?.balance || 0)}
           </div>
-          
+
           <ProfileMenu
             username={profile?.username || "Người chơi"}
             balance={profile?.balance || 0}

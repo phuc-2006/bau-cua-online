@@ -12,6 +12,9 @@ import Deposit from "./pages/Deposit";
 import RoomLobby from "./pages/RoomLobby";
 import Room from "./pages/Room";
 import OnlineGame from "./pages/OnlineGame";
+import LiXi from "./pages/LiXi";
+import LiXiWheel from "./pages/LiXiWheel";
+import LiXiGrid from "./pages/LiXiGrid";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +33,9 @@ const App = () => (
           <Route path="/rooms" element={<RoomLobby />} />
           <Route path="/room/:roomId" element={<Room />} />
           <Route path="/baucua/online/:roomId" element={<OnlineGame />} />
+          <Route path="/lixi" element={<LiXi />} />
+          <Route path="/lixi/wheel" element={<LiXiWheel />} />
+          <Route path="/lixi/grid" element={<LiXiGrid />} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/deposit" element={<Deposit />} />
           <Route path="*" element={<NotFound />} />
