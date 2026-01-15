@@ -438,19 +438,22 @@ const Room = () => {
         if (!roomId || !isHost) return;
 
         try {
-            // Update room status to playing
+            // QUAN TRỌNG: Reset ready status TRƯỚC khi update room status
+            // Vì room status update sẽ trigger realtime cho tất cả clients
+            const { error: resetError } = await supabase
+                .from("room_players")
+                .update({ is_ready: false, total_bet: 0 })
+                .eq("room_id", roomId);
+
+            if (resetError) throw resetError;
+
+            // Update room status to playing (triggers realtime for all clients)
             const { error: roomError } = await supabase
                 .from("rooms")
                 .update({ status: 'playing' })
                 .eq("id", roomId);
 
             if (roomError) throw roomError;
-
-            // Reset ready status and total_bet for all players
-            await supabase
-                .from("room_players")
-                .update({ is_ready: false, total_bet: 0 })
-                .eq("room_id", roomId);
 
             // Create a new game session
             const { error: sessionError } = await supabase

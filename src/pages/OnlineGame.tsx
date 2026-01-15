@@ -734,11 +734,13 @@ const OnlineGame = () => {
         if (!isHost || !roomId) return;
 
         try {
-            // Reset ready status and total bets in database
-            await supabase
+            // Reset ready status and total bets in database (with error check)
+            const { error: resetError } = await supabase
                 .from("room_players")
                 .update({ is_ready: false, total_bet: 0 })
                 .eq("room_id", roomId);
+
+            if (resetError) throw resetError;
 
             // Reset local state
             setReadyPlayers(new Set());
@@ -780,11 +782,13 @@ const OnlineGame = () => {
         }
 
         try {
-            // Reset ready status for game start
-            await supabase
+            // Reset ready status for game start (with error check)
+            const { error: resetError } = await supabase
                 .from("room_players")
                 .update({ is_ready: false, total_bet: 0 })
                 .eq("room_id", roomId);
+
+            if (resetError) throw resetError;
 
             // Reset local state
             setReadyPlayers(new Set());
