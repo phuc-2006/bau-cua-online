@@ -301,7 +301,7 @@ const OnlineGame = () => {
             // Avoid duplicates
             setPlayers(prev => {
                 if (prev.some(p => p.id === rowId || p.odlUserId === userId)) return prev;
-                return [...prev, { id: rowId, username: "Đang tải...", isHost: false, odlUserId: userId }];
+                return [...prev, { id: rowId, username: "Đang tải...", isHost: false, odlUserId: userId, isReady: false }];
             });
 
             // Hydrate username + host flag
