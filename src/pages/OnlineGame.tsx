@@ -29,6 +29,7 @@ interface Player {
     totalBet?: number;
     balance?: number;
     lastWinnings?: number | null;
+    betDetails?: Record<AnimalType, number>;
 }
 
 interface GameSession {
@@ -207,7 +208,7 @@ const OnlineGame = () => {
 
         const { data: playersData, error: playersError } = await supabase
             .from("room_players")
-            .select("id, user_id, is_ready, total_bet")
+            .select("id, user_id, is_ready, total_bet, bet_details")
             .eq("room_id", roomId);
 
         console.log('[fetchPlayers] Raw data:', playersData, 'Error:', playersError);
@@ -259,7 +260,8 @@ const OnlineGame = () => {
                     isReady: p.is_ready || false,
                     totalBet: p.total_bet || 0,
                     balance: profileInfo?.balance || 0,
-                    lastWinnings: existingPlayer?.lastWinnings ?? null
+                    lastWinnings: existingPlayer?.lastWinnings ?? null,
+                    betDetails: p.bet_details || {}
                 };
             });
             setPlayers(formattedPlayers);
@@ -459,10 +461,15 @@ const OnlineGame = () => {
                         console.log('[OnlineGame] Updated readyPlayers:', [...newSet]);
                         return newSet;
                     });
-                    // Also update local player object with ready status and total bet
+                    // Also update local player object with ready status, total bet, and bet details
                     setPlayers(prevPlayers => prevPlayers.map(p =>
                         p.odlUserId === row.user_id
-                            ? { ...p, isReady: row.is_ready || false, totalBet: row.total_bet || 0 }
+                            ? {
+                                ...p,
+                                isReady: row.is_ready || false,
+                                totalBet: row.total_bet || 0,
+                                betDetails: row.bet_details || {}
+                            }
                             : p
                     ));
                 }
@@ -612,11 +619,11 @@ const OnlineGame = () => {
         };
         setBets(newBets);
 
-        // Sync total bet to database for display to other players
+        // Sync total bet and bet details to database for display to other players
         const newTotalBet = Object.values(newBets).reduce((sum, bet) => sum + bet, 0);
         supabase
             .from("room_players")
-            .update({ total_bet: newTotalBet })
+            .update({ total_bet: newTotalBet, bet_details: newBets })
             .eq("room_id", roomId)
             .eq("user_id", user.id)
             .then();
@@ -630,11 +637,12 @@ const OnlineGame = () => {
         setProfile({ ...profile, balance: profile.balance + totalBet });
         setBets({ nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 });
 
-        // Reset total bet in database
+        // Reset total bet and bet details in database
         if (user && roomId) {
+            const emptyBets = { nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 };
             supabase
                 .from("room_players")
-                .update({ total_bet: 0 })
+                .update({ total_bet: 0, bet_details: emptyBets })
                 .eq("room_id", roomId)
                 .eq("user_id", user.id)
                 .then();
@@ -734,10 +742,11 @@ const OnlineGame = () => {
         if (!isHost || !roomId) return;
 
         try {
-            // Reset ready status and total bets in database (with error check)
+            // Reset ready status, total bets and bet details in database (with error check)
+            const emptyBets = { nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 };
             const { error: resetError } = await supabase
                 .from("room_players")
-                .update({ is_ready: false, total_bet: 0 })
+                .update({ is_ready: false, total_bet: 0, bet_details: emptyBets })
                 .eq("room_id", roomId);
 
             if (resetError) throw resetError;
@@ -782,10 +791,11 @@ const OnlineGame = () => {
         }
 
         try {
-            // Reset ready status for game start (with error check)
+            // Reset ready status, total bets and bet details for game start (with error check)
+            const emptyBets = { nai: 0, bau: 0, ga: 0, ca: 0, cua: 0, tom: 0 };
             const { error: resetError } = await supabase
                 .from("room_players")
-                .update({ is_ready: false, total_bet: 0 })
+                .update({ is_ready: false, total_bet: 0, bet_details: emptyBets })
                 .eq("room_id", roomId);
 
             if (resetError) throw resetError;
@@ -856,317 +866,407 @@ const OnlineGame = () => {
         );
     }
 
+    // Animal emoji mapping for bet display
+    const animalEmoji: Record<AnimalType, string> = {
+        nai: '🦌', bau: '🍐', ga: '🐓', ca: '🐟', cua: '🦀', tom: '🦐'
+    };
+    const animalName: Record<AnimalType, string> = {
+        nai: 'Nai', bau: 'Bầu', ga: 'Gà', ca: 'Cá', cua: 'Cua', tom: 'Tôm'
+    };
+
     return (
-        <div className="min-h-screen bg-background flex flex-col">
-            {/* Header */}
-            <header className="flex items-center justify-between p-4 border-b border-border">
-                <div className="flex items-center gap-4">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleLeaveRoom}
-                        disabled={isLeaving}
-                    >
-                        {isLeaving ? (
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                            <ArrowLeft className="w-4 h-4 mr-2" />
-                        )}
-                        Sảnh chờ
-                    </Button>
-                    <h1 className="text-xl md:text-2xl font-black text-foreground game-title">
-                        🎲 Bầu Cua Online
-                    </h1>
-                </div>
-
-                <div className="flex items-center gap-3">
-                    <div className="hidden md:flex items-center gap-2 bg-muted px-3 py-1 rounded-full text-sm">
-                        <Users className="w-4 h-4" />
-                        {players.length} người chơi
-                    </div>
-                    <div className="flex items-center gap-2 bg-primary text-primary-foreground px-3 py-2 rounded-full font-bold shadow-lg text-sm md:text-base">
-                        <Wallet className="w-4 h-4 md:w-5 md:h-5" />
-                        {formatMoney(profile?.balance || 0)}
-                    </div>
-
-                    <ProfileMenu
-                        username={profile?.username || "Người chơi"}
-                        balance={profile?.balance || 0}
-                        isAdmin={isAdmin}
-                        onLogout={handleLogout}
-                    />
-                </div>
-            </header>
-
-            {/* Status bar */}
-            <div className="bg-muted/50 px-4 py-2 flex items-center justify-between border-b border-border">
-                <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Mã phòng:</span>
-                    <span className="font-bold text-primary">{room?.code}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                    {/* Ready status indicator */}
-                    {session?.status === 'betting' && nonHostPlayers.length > 0 && (
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${allPlayersReady ? 'bg-green-500/20 text-green-500' : 'bg-orange-500/20 text-orange-500'
-                            }`}>
-                            {readyPlayers.size}/{nonHostPlayers.length} sẵn sàng
+        <div className="min-h-screen bg-background flex">
+            {/* Left Sidebar - Players List */}
+            <aside className="w-72 border-r border-border flex-shrink-0 flex flex-col bg-muted/30 hidden md:flex">
+                {/* Sidebar Header */}
+                <div className="p-4 border-b border-border">
+                    <div className="flex items-center gap-2">
+                        <Users className="w-5 h-5 text-primary" />
+                        <span className="font-bold text-foreground">
+                            Người chơi ({players.length}/{room?.max_players || 6})
                         </span>
-                    )}
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${session?.status === 'betting' ? 'bg-green-500/20 text-green-500' :
-                        session?.status === 'rolling' ? 'bg-yellow-500/20 text-yellow-500' :
-                            session?.status === 'revealed' ? 'bg-blue-500/20 text-blue-500' :
-                                'bg-gray-500/20 text-gray-500'
-                        }`}>
-                        {session?.status === 'betting' ? '🎯 Đang cược' :
-                            session?.status === 'rolling' ? '🎲 Đang lắc' :
-                                session?.status === 'revealed' ? '📊 Kết quả' :
-                                    '⏳ Chờ...'}
-                    </span>
-                    {isHost && (
-                        <span className="flex items-center gap-1 bg-primary/20 px-2 py-1 rounded-full text-xs text-primary font-medium">
-                            <Crown className="w-3 h-3" />
-                            Host
-                        </span>
-                    )}
+                    </div>
                 </div>
-            </div>
 
-            {/* Players List Section */}
-            <div className="px-4 py-3 border-b border-border">
-                <div className="flex items-center gap-2 mb-2">
-                    <Users className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm font-semibold text-foreground">
-                        Người chơi ({players.length}/{room?.max_players || 6})
-                    </span>
-                </div>
-                <div className="flex flex-wrap gap-2">
+                {/* Players List */}
+                <div className="flex-1 overflow-y-auto p-3 space-y-3">
                     {players.map((player) => {
                         const isCurrentPlayer = player.odlUserId === user?.id;
                         const playerIsReady = readyPlayers.has(player.odlUserId);
+                        const playerBetDetails = player.betDetails || {};
+                        const hasBets = Object.values(playerBetDetails).some(v => (v as number) > 0);
 
                         return (
                             <div
                                 key={player.id}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm ${isCurrentPlayer
-                                    ? 'bg-primary/15 border-primary/50 text-primary'
-                                    : 'bg-muted/50 border-border text-foreground'
+                                className={`rounded-xl border p-3 transition-all ${isCurrentPlayer
+                                    ? 'bg-primary/10 border-primary/50 ring-1 ring-primary/30'
+                                    : 'bg-background/50 border-border hover:bg-background/80'
                                     }`}
                             >
-                                {player.isHost && (
-                                    <Crown className="w-3 h-3 text-yellow-500" />
+                                {/* Player Header */}
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                        {player.isHost && (
+                                            <Crown className="w-4 h-4 text-yellow-500" />
+                                        )}
+                                        <span className={`font-semibold ${isCurrentPlayer ? 'text-primary' : 'text-foreground'}`}>
+                                            {player.username}
+                                            {isCurrentPlayer && ' (Bạn)'}
+                                        </span>
+                                    </div>
+                                    {/* Ready indicator */}
+                                    {session?.status === 'betting' && !player.isHost && (
+                                        <div className={`w-3 h-3 rounded-full ${playerIsReady ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
+                                    )}
+                                </div>
+
+                                {/* Balance & Total Bet */}
+                                <div className="flex items-center justify-between text-sm mb-2">
+                                    <span className="text-muted-foreground">Số dư:</span>
+                                    <span className="font-medium text-foreground">{formatMoney(player.balance || 0)}</span>
+                                </div>
+
+                                {/* Total Bet */}
+                                {(session?.status === 'betting' || session?.status === 'rolling') && (player.totalBet || 0) > 0 && (
+                                    <div className="flex items-center justify-between text-sm mb-2">
+                                        <span className="text-muted-foreground">Tổng cược:</span>
+                                        <span className="font-semibold text-orange-500">-{formatMoney(player.totalBet || 0)}</span>
+                                    </div>
                                 )}
-                                <span className="font-medium">
-                                    {player.username}
-                                    {isCurrentPlayer && ' (Bạn)'}
-                                </span>
-                                {/* Show balance */}
-                                <span className="text-xs text-muted-foreground">
-                                    {formatMoney(player.balance || 0)}
-                                </span>
-                                {/* Show total bet during betting */}
-                                {session?.status === 'betting' && (player.totalBet || 0) > 0 && (
-                                    <span className="text-xs text-orange-500 font-semibold">
-                                        -{formatMoney(player.totalBet || 0)}
-                                    </span>
-                                )}
-                                {/* Show win/loss after revealed */}
+
+                                {/* Win/Loss after revealed */}
                                 {session?.status === 'revealed' && player.lastWinnings !== null && player.lastWinnings !== undefined && (
-                                    <span className={`text-xs font-bold ${player.lastWinnings > 0 ? 'text-green-500' : player.lastWinnings < 0 ? 'text-red-500' : 'text-muted-foreground'
-                                        }`}>
-                                        {player.lastWinnings > 0 ? `+${formatMoney(player.lastWinnings)}` :
-                                            player.lastWinnings < 0 ? `-${formatMoney(Math.abs(player.lastWinnings))}` :
-                                                'Hòa'}
-                                    </span>
+                                    <div className="flex items-center justify-between text-sm mb-2">
+                                        <span className="text-muted-foreground">Kết quả:</span>
+                                        <span className={`font-bold ${player.lastWinnings > 0 ? 'text-green-500' : player.lastWinnings < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                                            {player.lastWinnings > 0 ? `+${formatMoney(player.lastWinnings)}` :
+                                                player.lastWinnings < 0 ? `-${formatMoney(Math.abs(player.lastWinnings))}` :
+                                                    'Hòa'}
+                                        </span>
+                                    </div>
                                 )}
-                                {session?.status === 'betting' && !player.isHost && (
-                                    <div className={`w-2 h-2 rounded-full ${playerIsReady ? 'bg-green-500' : 'bg-muted-foreground/30'
-                                        }`} />
+
+                                {/* Detailed Bets */}
+                                {(session?.status === 'betting' || session?.status === 'rolling') && hasBets && (
+                                    <div className="mt-2 pt-2 border-t border-border/50">
+                                        <div className="text-xs text-muted-foreground mb-1.5">Chi tiết cược:</div>
+                                        <div className="grid grid-cols-2 gap-1">
+                                            {Object.entries(playerBetDetails)
+                                                .filter(([_, amount]) => (amount as number) > 0)
+                                                .map(([animal, amount]) => (
+                                                    <div key={animal} className="flex items-center justify-between bg-muted/50 rounded px-2 py-1 text-xs">
+                                                        <span>{animalEmoji[animal as AnimalType]} {animalName[animal as AnimalType]}</span>
+                                                        <span className="font-medium text-orange-500">{formatMoney(amount as number)}</span>
+                                                    </div>
+                                                ))
+                                            }
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                         );
                     })}
                 </div>
-            </div>
+            </aside>
 
-            {/* Dice Bowl - auto reveal in online mode */}
-            <div className="flex justify-center py-4 md:py-6">
-                <DiceBowl
-                    key={bowlKey}
-                    isShaking={isShaking}
-                    results={session?.status === 'revealed' ? session.dice_results : null}
-                    previousResults={[]}
-                    pendingResults={session?.status === 'revealed' ? session.dice_results : null}
-                    onBowlRevealed={handleBowlRevealed}
-                    canReveal={canReveal}
-                    autoReveal={autoRevealed}
-                />
-            </div>
+            {/* Main Content */}
+            <main className="flex-1 flex flex-col min-w-0">
+                {/* Header */}
+                <header className="flex items-center justify-between p-4 border-b border-border">
+                    <div className="flex items-center gap-4">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleLeaveRoom}
+                            disabled={isLeaving}
+                        >
+                            {isLeaving ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            ) : (
+                                <ArrowLeft className="w-4 h-4 mr-2" />
+                            )}
+                            Sảnh chờ
+                        </Button>
+                        <h1 className="text-xl md:text-2xl font-black text-foreground game-title">
+                            🎲 Bầu Cua Online
+                        </h1>
+                    </div>
 
-            {/* Bet Selector */}
-            {session?.status === 'betting' && (
-                <div className="px-4 pb-4">
-                    <BetSelector
-                        amounts={BET_AMOUNTS}
-                        selectedAmount={selectedBetAmount}
-                        onSelect={setSelectedBetAmount}
+                    <div className="flex items-center gap-3">
+                        <div className="hidden md:flex items-center gap-2 bg-muted px-3 py-1 rounded-full text-sm">
+                            <Users className="w-4 h-4" />
+                            {players.length} người chơi
+                        </div>
+                        <div className="flex items-center gap-2 bg-primary text-primary-foreground px-3 py-2 rounded-full font-bold shadow-lg text-sm md:text-base">
+                            <Wallet className="w-4 h-4 md:w-5 md:h-5" />
+                            {formatMoney(profile?.balance || 0)}
+                        </div>
+
+                        <ProfileMenu
+                            username={profile?.username || "Người chơi"}
+                            balance={profile?.balance || 0}
+                            isAdmin={isAdmin}
+                            onLogout={handleLogout}
+                        />
+                    </div>
+                </header>
+
+                {/* Status bar */}
+                <div className="bg-muted/50 px-4 py-2 flex items-center justify-between border-b border-border">
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm text-muted-foreground">Mã phòng:</span>
+                        <span className="font-bold text-primary">{room?.code}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        {/* Ready status indicator */}
+                        {session?.status === 'betting' && nonHostPlayers.length > 0 && (
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${allPlayersReady ? 'bg-green-500/20 text-green-500' : 'bg-orange-500/20 text-orange-500'
+                                }`}>
+                                {readyPlayers.size}/{nonHostPlayers.length} sẵn sàng
+                            </span>
+                        )}
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${session?.status === 'betting' ? 'bg-green-500/20 text-green-500' :
+                            session?.status === 'rolling' ? 'bg-yellow-500/20 text-yellow-500' :
+                                session?.status === 'revealed' ? 'bg-blue-500/20 text-blue-500' :
+                                    'bg-gray-500/20 text-gray-500'
+                            }`}>
+                            {session?.status === 'betting' ? '🎯 Đang cược' :
+                                session?.status === 'rolling' ? '🎲 Đang lắc' :
+                                    session?.status === 'revealed' ? '📊 Kết quả' :
+                                        '⏳ Chờ...'}
+                        </span>
+                        {isHost && (
+                            <span className="flex items-center gap-1 bg-primary/20 px-2 py-1 rounded-full text-xs text-primary font-medium">
+                                <Crown className="w-3 h-3" />
+                                Host
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                {/* Mobile Players List (visible on mobile only) */}
+                <div className="md:hidden px-4 py-3 border-b border-border">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Users className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-semibold text-foreground">
+                            Người chơi ({players.length}/{room?.max_players || 6})
+                        </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {players.map((player) => {
+                            const isCurrentPlayer = player.odlUserId === user?.id;
+                            const playerIsReady = readyPlayers.has(player.odlUserId);
+
+                            return (
+                                <div
+                                    key={player.id}
+                                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm ${isCurrentPlayer
+                                        ? 'bg-primary/15 border-primary/50 text-primary'
+                                        : 'bg-muted/50 border-border text-foreground'
+                                        }`}
+                                >
+                                    {player.isHost && (
+                                        <Crown className="w-3 h-3 text-yellow-500" />
+                                    )}
+                                    <span className="font-medium">
+                                        {player.username}
+                                        {isCurrentPlayer && ' (Bạn)'}
+                                    </span>
+                                    {session?.status === 'betting' && (player.totalBet || 0) > 0 && (
+                                        <span className="text-xs text-orange-500 font-semibold">
+                                            -{formatMoney(player.totalBet || 0)}
+                                        </span>
+                                    )}
+                                    {session?.status === 'betting' && !player.isHost && (
+                                        <div className={`w-2 h-2 rounded-full ${playerIsReady ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Dice Bowl - auto reveal in online mode */}
+                <div className="flex justify-center py-4 md:py-6">
+                    <DiceBowl
+                        key={bowlKey}
+                        isShaking={isShaking}
+                        results={session?.status === 'revealed' ? session.dice_results : null}
+                        previousResults={[]}
+                        pendingResults={session?.status === 'revealed' ? session.dice_results : null}
+                        onBowlRevealed={handleBowlRevealed}
+                        canReveal={canReveal}
+                        autoReveal={autoRevealed}
                     />
                 </div>
-            )}
 
-            {/* Animal Grid */}
-            <div className="flex-1 px-4 pb-4">
-                <div className="grid grid-cols-3 gap-3 max-w-lg mx-auto">
-                    {ANIMALS.map((animal) => {
-                        const currentBet = bets[animal.id];
-                        const isWinner = session?.status === 'revealed' && winCounts[animal.id] > 0 && currentBet > 0;
+                {/* Bet Selector */}
+                {session?.status === 'betting' && (
+                    <div className="px-4 pb-4">
+                        <BetSelector
+                            amounts={BET_AMOUNTS}
+                            selectedAmount={selectedBetAmount}
+                            onSelect={setSelectedBetAmount}
+                        />
+                    </div>
+                )}
 
-                        return (
-                            <AnimalCard
-                                key={animal.id}
-                                animal={animal}
-                                isSelected={currentBet > 0}
-                                betAmount={currentBet}
-                                onClick={() => handleAnimalClick(animal.id)}
-                                isWinner={isWinner}
-                                winCount={winCounts[animal.id]}
-                            />
-                        );
-                    })}
+                {/* Animal Grid */}
+                <div className="flex-1 px-4 pb-4">
+                    <div className="grid grid-cols-3 gap-3 max-w-lg mx-auto">
+                        {ANIMALS.map((animal) => {
+                            const currentBet = bets[animal.id];
+                            const isWinner = session?.status === 'revealed' && winCounts[animal.id] > 0 && currentBet > 0;
+
+                            return (
+                                <AnimalCard
+                                    key={animal.id}
+                                    animal={animal}
+                                    isSelected={currentBet > 0}
+                                    betAmount={currentBet}
+                                    onClick={() => handleAnimalClick(animal.id)}
+                                    isWinner={isWinner}
+                                    winCount={winCounts[animal.id]}
+                                />
+                            );
+                        })}
+                    </div>
                 </div>
-            </div>
 
-            {/* Action Buttons */}
-            <div className="sticky bottom-0 bg-muted/95 backdrop-blur-sm p-4 border-t border-border">
-                <div className="flex justify-center gap-4 max-w-lg mx-auto">
-                    {/* Lobby mode - no session yet */}
-                    {!session && (
-                        <>
-                            {/* Non-host: Ready button */}
-                            {!isHost && (
+                {/* Action Buttons */}
+                <div className="sticky bottom-0 bg-muted/95 backdrop-blur-sm p-4 border-t border-border">
+                    <div className="flex justify-center gap-4 max-w-lg mx-auto">
+                        {/* Lobby mode - no session yet */}
+                        {!session && (
+                            <>
+                                {/* Non-host: Ready button */}
+                                {!isHost && (
+                                    <Button
+                                        variant={isReady ? "game" : "gameOutline"}
+                                        size="lg"
+                                        onClick={handleToggleReady}
+                                        className="flex-1"
+                                    >
+                                        <Check className={`w-5 h-5 mr-2 ${isReady ? 'text-white' : ''}`} />
+                                        {isReady ? "Đã sẵn sàng" : "Sẵn sàng"}
+                                    </Button>
+                                )}
+
+                                {/* Host: Start game button */}
+                                {isHost && (
+                                    <Button
+                                        variant="gameGold"
+                                        size="lg"
+                                        onClick={handleStartGame}
+                                        disabled={nonHostPlayers.length > 0 && !allPlayersReady}
+                                        className="flex-1"
+                                    >
+                                        <Dice5 className="w-5 h-5 mr-2" />
+                                        {nonHostPlayers.length > 0 && !allPlayersReady
+                                            ? `Chờ sẵn sàng (${readyPlayerCount}/${nonHostPlayers.length})`
+                                            : "Bắt đầu Game"}
+                                    </Button>
+                                )}
+
+                                {/* Waiting message for non-host when ready */}
+                                {!isHost && isReady && (
+                                    <div className="text-center text-sm text-muted-foreground">
+                                        Chờ host bắt đầu game...
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {session?.status === 'betting' && (
+                            <>
                                 <Button
-                                    variant={isReady ? "game" : "gameOutline"}
+                                    variant="gameDanger"
                                     size="lg"
-                                    onClick={handleToggleReady}
+                                    onClick={handleClearBets}
+                                    disabled={totalBet === 0}
                                     className="flex-1"
                                 >
-                                    <Check className={`w-5 h-5 mr-2 ${isReady ? 'text-white' : ''}`} />
-                                    {isReady ? "Đã sẵn sàng" : "Sẵn sàng"}
+                                    Xóa Cược
                                 </Button>
-                            )}
 
-                            {/* Host: Start game button */}
-                            {isHost && (
-                                <Button
-                                    variant="gameGold"
-                                    size="lg"
-                                    onClick={handleStartGame}
-                                    disabled={nonHostPlayers.length > 0 && !allPlayersReady}
-                                    className="flex-1"
-                                >
-                                    <Dice5 className="w-5 h-5 mr-2" />
-                                    {nonHostPlayers.length > 0 && !allPlayersReady
-                                        ? `Chờ sẵn sàng (${readyPlayerCount}/${nonHostPlayers.length})`
-                                        : "Bắt đầu Game"}
-                                </Button>
-                            )}
+                                {/* Non-host: Ready button */}
+                                {!isHost && (
+                                    <Button
+                                        variant={isReady ? "game" : "gameOutline"}
+                                        size="lg"
+                                        onClick={handleToggleReady}
+                                        className="flex-1"
+                                    >
+                                        <Check className={`w-5 h-5 mr-2 ${isReady ? 'text-white' : ''}`} />
+                                        {isReady ? "Đã sẵn sàng" : "Sẵn sàng"}
+                                    </Button>
+                                )}
 
-                            {/* Waiting message for non-host when ready */}
-                            {!isHost && isReady && (
-                                <div className="text-center text-sm text-muted-foreground">
-                                    Chờ host bắt đầu game...
-                                </div>
-                            )}
-                        </>
-                    )}
+                                {/* Host: Shake button */}
+                                {isHost && (
+                                    <Button
+                                        variant="gameGold"
+                                        size="lg"
+                                        onClick={handleShake}
+                                        disabled={nonHostPlayers.length > 0 && !allPlayersReady}
+                                        className="flex-1"
+                                    >
+                                        <Dice5 className="w-5 h-5 mr-2" />
+                                        {nonHostPlayers.length > 0 && !allPlayersReady
+                                            ? `Chờ sẵn sàng (${readyPlayerCount}/${nonHostPlayers.length})`
+                                            : "Lắc!"}
+                                    </Button>
+                                )}
+                            </>
+                        )}
 
-                    {session?.status === 'betting' && (
-                        <>
+                        {session?.status === 'rolling' && (
+                            <div className="flex-1 text-center py-3">
+                                <Loader2 className="w-6 h-6 animate-spin inline mr-2" />
+                                <span className="text-muted-foreground">Đang lắc xúc xắc...</span>
+                            </div>
+                        )}
+
+                        {session?.status === 'revealed' && isHost && (
                             <Button
-                                variant="gameDanger"
+                                variant="gameGold"
                                 size="lg"
-                                onClick={handleClearBets}
-                                disabled={totalBet === 0}
+                                onClick={handleNewRound}
                                 className="flex-1"
                             >
-                                Xóa Cược
+                                <RotateCcw className="w-5 h-5 mr-2" />
+                                Vòng Mới
                             </Button>
+                        )}
 
-                            {/* Non-host: Ready button */}
-                            {!isHost && (
-                                <Button
-                                    variant={isReady ? "game" : "gameOutline"}
-                                    size="lg"
-                                    onClick={handleToggleReady}
-                                    className="flex-1"
-                                >
-                                    <Check className={`w-5 h-5 mr-2 ${isReady ? 'text-white' : ''}`} />
-                                    {isReady ? "Đã sẵn sàng" : "Sẵn sàng"}
-                                </Button>
-                            )}
+                        {session?.status === 'revealed' && !isHost && (
+                            <div className="flex-1 text-center py-3">
+                                <span className="text-muted-foreground">Chờ host bắt đầu vòng mới...</span>
+                            </div>
+                        )}
+                    </div>
 
-                            {/* Host: Shake button */}
-                            {isHost && (
-                                <Button
-                                    variant="gameGold"
-                                    size="lg"
-                                    onClick={handleShake}
-                                    disabled={nonHostPlayers.length > 0 && !allPlayersReady}
-                                    className="flex-1"
-                                >
-                                    <Dice5 className="w-5 h-5 mr-2" />
-                                    {nonHostPlayers.length > 0 && !allPlayersReady
-                                        ? `Chờ sẵn sàng (${readyPlayerCount}/${nonHostPlayers.length})`
-                                        : "Lắc!"}
-                                </Button>
-                            )}
-                        </>
+                    {totalBet > 0 && (
+                        <p className="text-center text-sm text-muted-foreground mt-2">
+                            Tổng cược: <span className="font-bold text-foreground">{formatMoney(totalBet)}</span>
+                        </p>
                     )}
 
-                    {session?.status === 'rolling' && (
-                        <div className="flex-1 text-center py-3">
-                            <Loader2 className="w-6 h-6 animate-spin inline mr-2" />
-                            <span className="text-muted-foreground">Đang lắc xúc xắc...</span>
-                        </div>
-                    )}
-
-                    {session?.status === 'revealed' && isHost && (
-                        <Button
-                            variant="gameGold"
-                            size="lg"
-                            onClick={handleNewRound}
-                            className="flex-1"
+                    {lastWinnings !== null && (
+                        <motion.p
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className={`text-center text-lg font-bold mt-2 ${lastWinnings > 0 ? 'text-green-500' : lastWinnings < 0 ? 'text-red-500' : 'text-muted-foreground'
+                                }`}
                         >
-                            <RotateCcw className="w-5 h-5 mr-2" />
-                            Vòng Mới
-                        </Button>
-                    )}
-
-                    {session?.status === 'revealed' && !isHost && (
-                        <div className="flex-1 text-center py-3">
-                            <span className="text-muted-foreground">Chờ host bắt đầu vòng mới...</span>
-                        </div>
+                            {lastWinnings > 0 ? `+${formatMoney(lastWinnings)}` :
+                                lastWinnings < 0 ? `-${formatMoney(Math.abs(lastWinnings))}` :
+                                    'Hòa'}
+                        </motion.p>
                     )}
                 </div>
-
-                {totalBet > 0 && (
-                    <p className="text-center text-sm text-muted-foreground mt-2">
-                        Tổng cược: <span className="font-bold text-foreground">{formatMoney(totalBet)}</span>
-                    </p>
-                )}
-
-                {lastWinnings !== null && (
-                    <motion.p
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className={`text-center text-lg font-bold mt-2 ${lastWinnings > 0 ? 'text-green-500' : lastWinnings < 0 ? 'text-red-500' : 'text-muted-foreground'
-                            }`}
-                    >
-                        {lastWinnings > 0 ? `+${formatMoney(lastWinnings)}` :
-                            lastWinnings < 0 ? `-${formatMoney(Math.abs(lastWinnings))}` :
-                                'Hòa'}
-                    </motion.p>
-                )}
-            </div>
+            </main>
         </div>
     );
 };
